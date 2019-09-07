@@ -1,11 +1,11 @@
 /*
- * Copyright 2014-2018 the original author or authors.
+ * Copyright 2014-2019 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -19,6 +19,7 @@ package org.springframework.amqp.rabbit.listener;
 import java.lang.reflect.Method;
 import java.util.Arrays;
 
+import org.springframework.amqp.rabbit.listener.adapter.BatchMessagingMessageListenerAdapter;
 import org.springframework.amqp.rabbit.listener.adapter.HandlerAdapter;
 import org.springframework.amqp.rabbit.listener.adapter.MessagingMessageListenerAdapter;
 import org.springframework.amqp.rabbit.listener.api.RabbitListenerErrorHandler;
@@ -125,10 +126,6 @@ public class MethodRabbitListenerEndpoint extends AbstractRabbitListenerEndpoint
 			messageListener.setResponseAddress(replyToAddress);
 		}
 		MessageConverter messageConverter = getMessageConverter();
-		if (messageConverter == null) {
-			// fall back to the legacy converter holder in the container
-			messageConverter = container.getMessageConverter();
-		}
 		if (messageConverter != null) {
 			messageListener.setMessageConverter(messageConverter);
 		}
@@ -154,7 +151,14 @@ public class MethodRabbitListenerEndpoint extends AbstractRabbitListenerEndpoint
 	 * @return the {@link MessagingMessageListenerAdapter} instance.
 	 */
 	protected MessagingMessageListenerAdapter createMessageListenerInstance() {
-		return new MessagingMessageListenerAdapter(this.bean, this.method, this.returnExceptions, this.errorHandler);
+		if (isBatchListener()) {
+			return new BatchMessagingMessageListenerAdapter(this.bean, this.method, this.returnExceptions,
+					this.errorHandler, getBatchingStrategy());
+		}
+		else {
+			return new MessagingMessageListenerAdapter(this.bean, this.method, this.returnExceptions,
+					this.errorHandler);
+		}
 	}
 
 	@Nullable

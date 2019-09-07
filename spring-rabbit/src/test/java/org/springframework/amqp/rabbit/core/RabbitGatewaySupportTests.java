@@ -1,11 +1,11 @@
 /*
- * Copyright 2010-2016 the original author or authors.
+ * Copyright 2010-2019 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,13 +16,13 @@
 
 package org.springframework.amqp.rabbit.core;
 
-import static org.junit.Assert.assertEquals;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 
 import java.util.ArrayList;
 import java.util.List;
 
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 /**
  * @author Mark Pollack
@@ -45,10 +45,9 @@ public class RabbitGatewaySupportTests {
 		};
 		gateway.setConnectionFactory(mockConnectionFactory);
 		gateway.afterPropertiesSet();
-		assertEquals("Correct ConnectionFactory", mockConnectionFactory, gateway.getConnectionFactory());
-		assertEquals("Correct RabbitTemplate", mockConnectionFactory,
-				gateway.getRabbitOperations().getConnectionFactory());
-		assertEquals("initGatway called", test.size(), 1);
+		assertThat(gateway.getConnectionFactory()).as("Correct ConnectionFactory").isEqualTo(mockConnectionFactory);
+		assertThat(gateway.getRabbitOperations().getConnectionFactory()).as("Correct RabbitTemplate").isEqualTo(mockConnectionFactory);
+		assertThat(1).as("initGatway called").isEqualTo(test.size());
 	}
 
 	@Test
@@ -63,8 +62,8 @@ public class RabbitGatewaySupportTests {
 		};
 		gateway.setRabbitOperations(template);
 		gateway.afterPropertiesSet();
-		assertEquals("Correct RabbitTemplate", template, gateway.getRabbitOperations());
-		assertEquals("initGateway called", test.size(), 1);
+		assertThat(gateway.getRabbitOperations()).as("Correct RabbitTemplate").isEqualTo(template);
+		assertThat(1).as("initGateway called").isEqualTo(test.size());
 	}
 
 }

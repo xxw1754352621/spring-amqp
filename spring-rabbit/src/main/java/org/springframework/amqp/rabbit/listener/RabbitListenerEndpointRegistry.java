@@ -1,11 +1,11 @@
 /*
- * Copyright 2014-2018 the original author or authors.
+ * Copyright 2014-2019 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -164,6 +164,9 @@ public class RabbitListenerEndpointRegistry implements DisposableBean, SmartLife
 				}
 				containerGroup.add(container);
 			}
+			if (this.contextRefreshed) {
+				container.lazyLoad();
+			}
 			if (startImmediately) {
 				startIfNecessary(container);
 			}
@@ -257,16 +260,21 @@ public class RabbitListenerEndpointRegistry implements DisposableBean, SmartLife
 	@Override
 	public void stop(Runnable callback) {
 		Collection<MessageListenerContainer> containers = getListenerContainers();
-		AggregatingCallback aggregatingCallback = new AggregatingCallback(containers.size(), callback);
-		for (MessageListenerContainer listenerContainer : containers) {
-			try {
-				listenerContainer.stop(aggregatingCallback);
-			}
-			catch (Exception e) {
-				if (this.logger.isWarnEnabled()) {
-					this.logger.warn("Failed to stop listener container [" + listenerContainer + "]", e);
+		if (containers.size() > 0) {
+			AggregatingCallback aggregatingCallback = new AggregatingCallback(containers.size(), callback);
+			for (MessageListenerContainer listenerContainer : containers) {
+				try {
+					listenerContainer.stop(aggregatingCallback);
+				}
+				catch (Exception e) {
+					if (this.logger.isWarnEnabled()) {
+						this.logger.warn("Failed to stop listener container [" + listenerContainer + "]", e);
+					}
 				}
 			}
+		}
+		else {
+			callback.run();
 		}
 	}
 

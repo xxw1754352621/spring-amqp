@@ -1,11 +1,11 @@
 /*
- * Copyright 2015-2017 the original author or authors.
+ * Copyright 2015-2019 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,15 +16,12 @@
 
 package org.springframework.amqp.support.converter;
 
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.instanceOf;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertThat;
-import static org.junit.Assert.fail;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.fail;
 
 import java.io.Serializable;
 
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 import org.springframework.amqp.core.Message;
 import org.springframework.amqp.core.MessageProperties;
@@ -49,16 +46,16 @@ public class ContentTypeDelegatingMessageConverterTests {
 		Foo foo = new Foo();
 		foo.setFoo("bar");
 		Message message = converter.toMessage(foo, props);
-		assertEquals(MessageProperties.CONTENT_TYPE_SERIALIZED_OBJECT, message.getMessageProperties().getContentType());
+		assertThat(message.getMessageProperties().getContentType()).isEqualTo(MessageProperties.CONTENT_TYPE_SERIALIZED_OBJECT);
 		Object converted = converter.fromMessage(message);
-		assertThat(converted, instanceOf(Foo.class));
+		assertThat(converted).isInstanceOf(Foo.class);
 
 		props.setContentType("foo/bar");
 		message = converter.toMessage(foo, props);
-		assertEquals(MessageProperties.CONTENT_TYPE_JSON, message.getMessageProperties().getContentType());
-		assertEquals("{\"foo\":\"bar\"}", new String(message.getBody()));
+		assertThat(message.getMessageProperties().getContentType()).isEqualTo(MessageProperties.CONTENT_TYPE_JSON);
+		assertThat(new String(message.getBody())).isEqualTo("{\"foo\":\"bar\"}");
 		converted = converter.fromMessage(message);
-		assertThat(converted, instanceOf(Foo.class));
+		assertThat(converted).isInstanceOf(Foo.class);
 
 		converter = new ContentTypeDelegatingMessageConverter(null); // no default
 		try {
@@ -66,8 +63,8 @@ public class ContentTypeDelegatingMessageConverterTests {
 			fail("Expected exception");
 		}
 		catch (Exception e) {
-			assertThat(e, instanceOf(MessageConversionException.class));
-			assertThat(e.getMessage(), containsString("No delegate converter"));
+			assertThat(e).isInstanceOf(MessageConversionException.class);
+			assertThat(e.getMessage()).contains("No delegate converter");
 		}
 	}
 

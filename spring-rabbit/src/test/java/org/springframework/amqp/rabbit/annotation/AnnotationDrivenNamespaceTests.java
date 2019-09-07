@@ -1,11 +1,11 @@
 /*
- * Copyright 2002-2016 the original author or authors.
+ * Copyright 2002-2019 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -17,13 +17,14 @@
 package org.springframework.amqp.rabbit.annotation;
 
 
-import org.hamcrest.core.Is;
-import org.junit.Test;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
+import org.junit.jupiter.api.Test;
 
 import org.springframework.amqp.core.MessageListener;
 import org.springframework.amqp.rabbit.config.SimpleRabbitListenerEndpoint;
 import org.springframework.amqp.rabbit.listener.RabbitListenerEndpointRegistrar;
-import org.springframework.amqp.rabbit.listener.exception.ListenerExecutionFailedException;
+import org.springframework.amqp.rabbit.support.ListenerExecutionFailedException;
 import org.springframework.beans.factory.BeanCreationException;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.support.ClassPathXmlApplicationContext;
@@ -61,9 +62,11 @@ public class AnnotationDrivenNamespaceTests extends AbstractRabbitAnnotationDriv
 
 	@Override
 	public void noRabbitAdminConfiguration() {
-		thrown.expect(BeanCreationException.class);
-		thrown.expectMessage("'rabbitAdmin'");
-		new ClassPathXmlApplicationContext("annotation-driven-no-rabbit-admin-config.xml", getClass()).close();
+		assertThatThrownBy(
+				() -> new ClassPathXmlApplicationContext("annotation-driven-no-rabbit-admin-config.xml", getClass())
+					.close())
+			.isExactlyInstanceOf(BeanCreationException.class)
+			.withFailMessage("'rabbitAdmin'");
 	}
 
 	@Override
@@ -94,9 +97,10 @@ public class AnnotationDrivenNamespaceTests extends AbstractRabbitAnnotationDriv
 		ApplicationContext context = new ClassPathXmlApplicationContext(
 				"annotation-driven-custom-handler-method-factory.xml", getClass());
 
-		thrown.expect(ListenerExecutionFailedException.class);
-		thrown.expectCause(Is.<MethodArgumentNotValidException>isA(MethodArgumentNotValidException.class));
-		testRabbitHandlerMethodFactoryConfiguration(context);
+		assertThatThrownBy(() -> testRabbitHandlerMethodFactoryConfiguration(context))
+			.isExactlyInstanceOf(ListenerExecutionFailedException.class)
+			.hasCauseExactlyInstanceOf(MethodArgumentNotValidException.class);
+
 	}
 
 	@Override

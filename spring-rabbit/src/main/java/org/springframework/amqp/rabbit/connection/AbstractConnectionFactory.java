@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -22,7 +22,9 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.UnknownHostException;
 import java.security.GeneralSecurityException;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
@@ -103,7 +105,9 @@ public abstract class AbstractConnectionFactory implements ConnectionFactory, Di
 
 	private ExecutorService executorService;
 
-	private Address[] addresses;
+	private List<Address> addresses;
+
+	private boolean shuffleAddresses;
 
 	private int closeTimeout = DEFAULT_CLOSE_TIMEOUT;
 
@@ -281,7 +285,7 @@ public abstract class AbstractConnectionFactory implements ConnectionFactory, Di
 		if (StringUtils.hasText(addresses)) {
 			Address[] addressArray = Address.parseAddresses(addresses);
 			if (addressArray.length > 0) {
-				this.addresses = addressArray;
+				this.addresses = Arrays.asList(addressArray);
 				if (this.publisherConnectionFactory != null) {
 					this.publisherConnectionFactory.setAddresses(addresses);
 				}
@@ -441,6 +445,18 @@ public abstract class AbstractConnectionFactory implements ConnectionFactory, Di
 		return this.beanName;
 	}
 
+	/**
+	 * When {@link #setAddresses(String) addresses} are provided and there is more than
+	 * one, set to true to shuffle the list before opening a new connection so that the
+	 * connection to the broker will be attempted in random order.
+	 * @param shuffleAddresses true to shuffle the list.
+	 * @since 2.1.8
+	 * @see Collections#shuffle(List)
+	 */
+	public void setShuffleAddresses(boolean shuffleAddresses) {
+		this.shuffleAddresses = shuffleAddresses;
+	}
+
 	public boolean hasPublisherConnectionFactory() {
 		return this.publisherConnectionFactory != null;
 	}
@@ -454,22 +470,7 @@ public abstract class AbstractConnectionFactory implements ConnectionFactory, Di
 		try {
 			String connectionName = this.connectionNameStrategy.obtainNewConnectionName(this);
 
-			com.rabbitmq.client.Connection rabbitConnection;
-			if (this.addresses != null) {
-				if (this.logger.isInfoEnabled()) {
-					this.logger.info("Attempting to connect to: " + Arrays.toString(this.addresses));
-				}
-				rabbitConnection = this.rabbitConnectionFactory.newConnection(this.executorService, this.addresses,
-						connectionName);
-
-			}
-			else {
-				if (this.logger.isInfoEnabled()) {
-					this.logger.info("Attempting to connect to: " + this.rabbitConnectionFactory.getHost()
-							+ ":" + this.rabbitConnectionFactory.getPort());
-				}
-				rabbitConnection = this.rabbitConnectionFactory.newConnection(this.executorService, connectionName);
-			}
+			com.rabbitmq.client.Connection rabbitConnection = connect(connectionName);
 
 			Connection connection = new SimpleConnection(rabbitConnection, this.closeTimeout);
 			if (rabbitConnection instanceof AutorecoveringConnection) {
@@ -508,6 +509,31 @@ public abstract class AbstractConnectionFactory implements ConnectionFactory, Di
 		catch (IOException | TimeoutException e) {
 			throw RabbitExceptionTranslator.convertRabbitAccessException(e);
 		}
+	}
+
+	private com.rabbitmq.client.Connection connect(String connectionName) throws IOException, TimeoutException {
+		com.rabbitmq.client.Connection rabbitConnection;
+		if (this.addresses != null) {
+			List<Address> addressesToConnect = this.addresses;
+			if (this.shuffleAddresses && addressesToConnect.size() > 1) {
+				List<Address> list = new ArrayList<>(addressesToConnect);
+				Collections.shuffle(list);
+				addressesToConnect = list;
+			}
+			if (this.logger.isInfoEnabled()) {
+				this.logger.info("Attempting to connect to: " + addressesToConnect);
+			}
+			rabbitConnection = this.rabbitConnectionFactory.newConnection(this.executorService, addressesToConnect,
+					connectionName);
+		}
+		else {
+			if (this.logger.isInfoEnabled()) {
+				this.logger.info("Attempting to connect to: " + this.rabbitConnectionFactory.getHost()
+						+ ":" + this.rabbitConnectionFactory.getPort());
+			}
+			rabbitConnection = this.rabbitConnectionFactory.newConnection(this.executorService, connectionName);
+		}
+		return rabbitConnection;
 	}
 
 	protected final String getDefaultHostName() {

@@ -1,11 +1,11 @@
 /*
- * Copyright 2002-2016 the original author or authors.
+ * Copyright 2002-2019 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -39,6 +39,8 @@ class ConnectionFactoryParser extends AbstractSingleBeanDefinitionParser {
 	private static final String PORT_ATTRIBUTE = "port";
 
 	private static final String ADDRESSES = "addresses";
+
+	private static final String SHUFFLE_ADDRESSES = "shuffle-addresses";
 
 	private static final String VIRTUAL_HOST_ATTRIBUTE = "virtual-host";
 
@@ -98,6 +100,7 @@ class ConnectionFactoryParser extends AbstractSingleBeanDefinitionParser {
 		NamespaceUtils.setValueIfAttributeDefined(builder, element, VIRTUAL_HOST_ATTRIBUTE);
 		NamespaceUtils.setReferenceIfAttributeDefined(builder, element, EXECUTOR_ATTRIBUTE);
 		NamespaceUtils.setValueIfAttributeDefined(builder, element, ADDRESSES);
+		NamespaceUtils.setValueIfAttributeDefined(builder, element, SHUFFLE_ADDRESSES);
 		NamespaceUtils.setValueIfAttributeDefined(builder, element, PUBLISHER_CONFIRMS);
 		NamespaceUtils.setValueIfAttributeDefined(builder, element, PUBLISHER_RETURNS);
 		NamespaceUtils.setValueIfAttributeDefined(builder, element, REQUESTED_HEARTBEAT, "requestedHeartBeat");
@@ -108,6 +111,7 @@ class ConnectionFactoryParser extends AbstractSingleBeanDefinitionParser {
 		NamespaceUtils.setValueIfAttributeDefined(builder, element, FACTORY_TIMEOUT, "channelCheckoutTimeout");
 		NamespaceUtils.setValueIfAttributeDefined(builder, element, CONNECTION_LIMIT);
 		NamespaceUtils.setReferenceIfAttributeDefined(builder, element, "connection-name-strategy");
+		NamespaceUtils.setValueIfAttributeDefined(builder, element, "confirm-type", "publisherConfirmType");
 	}
 
 }

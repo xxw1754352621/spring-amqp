@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -88,7 +88,7 @@ public class LocalizedQueueConnectionFactory implements ConnectionFactory, Routi
 	 * @param defaultConnectionFactory the fallback connection factory to use if the queue
 	 * can't be located.
 	 * @param nodeToAddress a Map of node to address: (rabbit@server1 : server1:5672)
-	 * @param adminUris the rabbitmq admin addresses (http://host:port, ...) must be the
+	 * @param adminUris the rabbitmq admin addresses (https://host:port, ...) must be the
 	 * same length as addresses.
 	 * @param vhost the virtual host.
 	 * @param username the user name.
@@ -107,7 +107,7 @@ public class LocalizedQueueConnectionFactory implements ConnectionFactory, Routi
 	/**
 	 * @param defaultConnectionFactory the fallback connection factory to use if the queue can't be located.
 	 * @param nodeToAddress a Map of node to address: (rabbit@server1 : server1:5672)
-	 * @param adminUris the rabbitmq admin addresses (http://host:port, ...) must be the same length
+	 * @param adminUris the rabbitmq admin addresses (https://host:port, ...) must be the same length
 	 * as addresses.
 	 * @param vhost the virtual host.
 	 * @param username the user name.
@@ -131,7 +131,7 @@ public class LocalizedQueueConnectionFactory implements ConnectionFactory, Routi
 	 * @param defaultConnectionFactory the fallback connection factory to use if the queue
 	 * can't be located.
 	 * @param addresses the rabbitmq server addresses (host:port, ...).
-	 * @param adminUris the rabbitmq admin addresses (http://host:port, ...)
+	 * @param adminUris the rabbitmq admin addresses (https://host:port, ...)
 	 * @param nodes the rabbitmq nodes corresponding to addresses (rabbit@server1, ...)
 	 * must be the same length as addresses.
 	 * @param vhost the virtual host.
@@ -151,7 +151,7 @@ public class LocalizedQueueConnectionFactory implements ConnectionFactory, Routi
 	/**
 	 * @param defaultConnectionFactory the fallback connection factory to use if the queue can't be located.
 	 * @param addresses the rabbitmq server addresses (host:port, ...).
-	 * @param adminUris the rabbitmq admin addresses (http://host:port, ...).
+	 * @param adminUris the rabbitmq admin addresses (https://host:port, ...).
 	 * @param nodes the rabbitmq nodes corresponding to addresses (rabbit@server1, ...)  must be the same length
 	 * as addresses.
 	 * @param vhost the virtual host.

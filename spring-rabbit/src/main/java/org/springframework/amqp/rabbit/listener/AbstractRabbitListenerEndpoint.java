@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -22,9 +22,11 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 
+import org.springframework.amqp.core.AcknowledgeMode;
 import org.springframework.amqp.core.AmqpAdmin;
 import org.springframework.amqp.core.MessageListener;
 import org.springframework.amqp.core.Queue;
+import org.springframework.amqp.rabbit.batch.BatchingStrategy;
 import org.springframework.amqp.support.converter.MessageConverter;
 import org.springframework.beans.BeansException;
 import org.springframework.beans.factory.BeanFactory;
@@ -81,6 +83,12 @@ public abstract class AbstractRabbitListenerEndpoint implements RabbitListenerEn
 	private MessageConverter messageConverter;
 
 	private TaskExecutor taskExecutor;
+
+	private boolean batchListener;
+
+	private BatchingStrategy batchingStrategy;
+
+	private AcknowledgeMode ackMode;
 
 	@Override
 	public void setBeanFactory(BeanFactory beanFactory) throws BeansException {
@@ -277,6 +285,41 @@ public abstract class AbstractRabbitListenerEndpoint implements RabbitListenerEn
 	 */
 	public void setTaskExecutor(TaskExecutor taskExecutor) {
 		this.taskExecutor = taskExecutor;
+	}
+
+	public boolean isBatchListener() {
+		return this.batchListener;
+	}
+
+	/**
+	 * Set to true if this endpoint should create a batch listener.
+	 * @param batchListener true for a batch listener.
+	 * @since 2.2
+	 * @see #setBatchingStrategy(BatchingStrategy)
+	 */
+	@Override
+	public void setBatchListener(boolean batchListener) {
+		this.batchListener = batchListener;
+	}
+
+	@Nullable
+	public BatchingStrategy getBatchingStrategy() {
+		return this.batchingStrategy;
+	}
+
+	@Override
+	public void setBatchingStrategy(BatchingStrategy batchingStrategy) {
+		this.batchingStrategy = batchingStrategy;
+	}
+
+	@Override
+	@Nullable
+	public AcknowledgeMode getAckMode() {
+		return this.ackMode;
+	}
+
+	public void setAckMode(AcknowledgeMode ackMode) {
+		this.ackMode = ackMode;
 	}
 
 	@Override

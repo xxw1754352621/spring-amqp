@@ -1,11 +1,11 @@
 /*
- * Copyright 2016 the original author or authors.
+ * Copyright 2016-2019 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,29 +16,26 @@
 
 package org.springframework.amqp.rabbit.annotation;
 
-import static org.junit.Assert.assertEquals;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 
 import java.io.Serializable;
 
-import org.junit.ClassRule;
-import org.junit.Test;
-import org.junit.runner.RunWith;
+import org.junit.jupiter.api.Test;
 
 import org.springframework.amqp.rabbit.config.SimpleRabbitListenerContainerFactory;
 import org.springframework.amqp.rabbit.connection.CachingConnectionFactory;
 import org.springframework.amqp.rabbit.connection.ConnectionFactory;
 import org.springframework.amqp.rabbit.core.RabbitAdmin;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
-import org.springframework.amqp.rabbit.junit.BrokerRunning;
+import org.springframework.amqp.rabbit.junit.RabbitAvailable;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.test.annotation.DirtiesContext;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
+import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.EnableTransactionManagement;
 import org.springframework.transaction.annotation.Transactional;
@@ -47,13 +44,10 @@ import org.springframework.transaction.annotation.Transactional;
  * @author Artem Bilan
  * @since 1.5.5
  */
-@ContextConfiguration(classes = EnableRabbitCglibProxyTests.Config.class)
-@RunWith(SpringJUnit4ClassRunner.class)
+@SpringJUnitConfig
 @DirtiesContext
+@RabbitAvailable
 public class EnableRabbitCglibProxyTests {
-
-	@ClassRule
-	public static final BrokerRunning brokerRunning = BrokerRunning.isRunning();
 
 	@Autowired
 	private RabbitTemplate rabbitTemplate;
@@ -63,8 +57,8 @@ public class EnableRabbitCglibProxyTests {
 		this.rabbitTemplate.setReplyTimeout(600000);
 		Foo foo = new Foo();
 		foo.field = "foo";
-		assertEquals("Reply: foo: AUTO.RK.TEST",
-				this.rabbitTemplate.convertSendAndReceive("auto.exch.test", "auto.rk.test", foo));
+		assertThat(this.rabbitTemplate.convertSendAndReceive("auto.exch.test", "auto.rk.test", foo))
+				.isEqualTo("Reply: foo: AUTO.RK.TEST");
 	}
 
 	@Configuration

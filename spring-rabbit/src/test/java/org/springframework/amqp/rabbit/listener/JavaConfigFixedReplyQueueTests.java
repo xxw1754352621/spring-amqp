@@ -1,11 +1,11 @@
 /*
- * Copyright 2014-2016 the original author or authors.
+ * Copyright 2014-2019 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,17 +16,13 @@
 
 package org.springframework.amqp.rabbit.listener;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertThat;
-import static org.junit.Assert.fail;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.fail;
 
 import java.util.Arrays;
 import java.util.UUID;
 
-import org.hamcrest.Matchers;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.runner.RunWith;
+import org.junit.jupiter.api.Test;
 
 import org.springframework.amqp.UncategorizedAmqpException;
 import org.springframework.amqp.core.AnonymousQueue;
@@ -41,16 +37,14 @@ import org.springframework.amqp.rabbit.connection.CachingConnectionFactory;
 import org.springframework.amqp.rabbit.connection.ConnectionFactory;
 import org.springframework.amqp.rabbit.core.RabbitAdmin;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
-import org.springframework.amqp.rabbit.junit.BrokerRunning;
-import org.springframework.amqp.rabbit.listener.JavaConfigFixedReplyQueueTests.FixedReplyQueueConfig;
+import org.springframework.amqp.rabbit.junit.RabbitAvailable;
 import org.springframework.amqp.rabbit.listener.adapter.MessageListenerAdapter;
 import org.springframework.amqp.utils.test.TestUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.test.annotation.DirtiesContext;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
+import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
 
 /**
  * <b>NOTE:</b> This class is referenced in the reference documentation; if it is changed/moved, be
@@ -60,9 +54,9 @@ import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
  * @since 1.3
  */
 
-@ContextConfiguration(classes = FixedReplyQueueConfig.class)
-@RunWith(SpringJUnit4ClassRunner.class)
+@SpringJUnitConfig
 @DirtiesContext
+@RabbitAvailable
 public class JavaConfigFixedReplyQueueTests {
 
 	@Autowired
@@ -80,9 +74,6 @@ public class JavaConfigFixedReplyQueueTests {
 	@Autowired
 	private SimpleMessageListenerContainer replyListenerContainerWrongQueue;
 
-	@Rule
-	public BrokerRunning brokerRunning = BrokerRunning.isRunning();
-
 	/**
 	 * Sends a message to a service that upcases the String and returns as a reply
 	 * using a {@link RabbitTemplate} configured with a fixed reply queue and
@@ -90,12 +81,12 @@ public class JavaConfigFixedReplyQueueTests {
 	 */
 	@Test
 	public void testReplyContainer() {
-		assertEquals("FOO", this.fixedReplyQRabbitTemplate.convertSendAndReceive("foo"));
+		assertThat(this.fixedReplyQRabbitTemplate.convertSendAndReceive("foo")).isEqualTo("FOO");
 		Message message = MessageBuilder.withBody("foo".getBytes())
 				.setContentType("text/plain")
 				.build();
 		Message reply = this.fixedReplyQRabbitTemplate.sendAndReceive(message);
-		assertEquals(this.replyExchange.getName(), reply.getMessageProperties().getReceivedExchange());
+		assertThat(reply.getMessageProperties().getReceivedExchange()).isEqualTo(this.replyExchange.getName());
 	}
 
 	@Test
@@ -105,9 +96,8 @@ public class JavaConfigFixedReplyQueueTests {
 			fail("expected exeption");
 		}
 		catch (IllegalStateException e) {
-			assertThat(e.getMessage(),
-					Matchers.containsString("RabbitTemplate is not configured as MessageListener - "
-							+ "cannot use a 'replyAddress'"));
+			assertThat(e.getMessage()).contains("RabbitTemplate is not configured as MessageListener - "
+					+ "cannot use a 'replyAddress'");
 		}
 	}
 
@@ -119,11 +109,10 @@ public class JavaConfigFixedReplyQueueTests {
 		}
 		catch (UncategorizedAmqpException e) {
 			Throwable t = e.getCause();
-			assertThat(t, Matchers.instanceOf(IllegalStateException.class));
-			assertThat(t.getMessage(),
-					Matchers.containsString("Listener expects us to be listening on '["
-							+ TestUtils.getPropertyValue(this.fixedReplyQRabbitTemplateWrongQueue, "replyAddress")
-							+ "]'; our queues: " + Arrays.asList(this.replyListenerContainerWrongQueue.getQueueNames())));
+			assertThat(t).isInstanceOf(IllegalStateException.class);
+			assertThat(t.getMessage()).contains("Listener expects us to be listening on '["
+					+ TestUtils.getPropertyValue(this.fixedReplyQRabbitTemplateWrongQueue, "replyAddress")
+					+ "]'; our queues: " + Arrays.asList(this.replyListenerContainerWrongQueue.getQueueNames()));
 		}
 	}
 

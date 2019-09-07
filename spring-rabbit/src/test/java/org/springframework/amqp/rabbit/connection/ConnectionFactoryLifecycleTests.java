@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,28 +16,21 @@
 
 package org.springframework.amqp.rabbit.connection;
 
-import static org.hamcrest.Matchers.containsString;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertSame;
-import static org.junit.Assert.assertThat;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.fail;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
-import org.junit.Rule;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 import org.springframework.amqp.AmqpApplicationContextClosedException;
 import org.springframework.amqp.core.AnonymousQueue;
 import org.springframework.amqp.core.Queue;
 import org.springframework.amqp.rabbit.core.RabbitAdmin;
-import org.springframework.amqp.rabbit.junit.BrokerRunning;
 import org.springframework.amqp.rabbit.junit.BrokerTestUtils;
+import org.springframework.amqp.rabbit.junit.RabbitAvailable;
 import org.springframework.amqp.utils.test.TestUtils;
 import org.springframework.context.ApplicationListener;
 import org.springframework.context.SmartLifecycle;
@@ -57,10 +50,8 @@ import com.rabbitmq.client.impl.AMQImpl;
  * @since 1.5.3
  *
  */
+@RabbitAvailable
 public class ConnectionFactoryLifecycleTests {
-
-	@Rule
-	public BrokerRunning brokerRunning = BrokerRunning.isRunning();
 
 	@Test
 	public void testConnectionFactoryAvailableDuringStop() {
@@ -68,14 +59,14 @@ public class ConnectionFactoryLifecycleTests {
 		MyLifecycle myLifecycle = context.getBean(MyLifecycle.class);
 		CachingConnectionFactory cf = context.getBean(CachingConnectionFactory.class);
 		context.close();
-		assertFalse(myLifecycle.isRunning());
-		assertTrue(TestUtils.getPropertyValue(cf, "stopped", Boolean.class));
+		assertThat(myLifecycle.isRunning()).isFalse();
+		assertThat(TestUtils.getPropertyValue(cf, "stopped", Boolean.class)).isTrue();
 		try {
 			cf.createConnection();
 			fail("Expected exception");
 		}
 		catch (AmqpApplicationContextClosedException e) {
-			assertThat(e.getMessage(), containsString("The ApplicationContext is closed"));
+			assertThat(e.getMessage()).contains("The ApplicationContext is closed");
 		}
 	}
 
@@ -113,20 +104,20 @@ public class ConnectionFactoryLifecycleTests {
 		AMQConnection amqConnection = TestUtils.getPropertyValue(connection, "target.delegate", AMQConnection.class);
 		amqConnection.processControlCommand(new AMQCommand(new AMQImpl.Connection.Blocked("Test connection blocked")));
 
-		assertTrue(blockedConnectionLatch.await(10, TimeUnit.SECONDS));
+		assertThat(blockedConnectionLatch.await(10, TimeUnit.SECONDS)).isTrue();
 
 		ConnectionBlockedEvent connectionBlockedEvent = blockedConnectionEvent.get();
-		assertNotNull(connectionBlockedEvent);
-		assertEquals("Test connection blocked", connectionBlockedEvent.getReason());
-		assertSame(TestUtils.getPropertyValue(connection, "target"), connectionBlockedEvent.getConnection());
+		assertThat(connectionBlockedEvent).isNotNull();
+		assertThat(connectionBlockedEvent.getReason()).isEqualTo("Test connection blocked");
+		assertThat(connectionBlockedEvent.getConnection()).isSameAs(TestUtils.getPropertyValue(connection, "target"));
 
 		amqConnection.processControlCommand(new AMQCommand(new AMQImpl.Connection.Unblocked()));
 
-		assertTrue(unblockedConnectionLatch.await(10, TimeUnit.SECONDS));
+		assertThat(unblockedConnectionLatch.await(10, TimeUnit.SECONDS)).isTrue();
 
 		ConnectionUnblockedEvent connectionUnblockedEvent = unblockedConnectionEvent.get();
-		assertNotNull(connectionUnblockedEvent);
-		assertSame(TestUtils.getPropertyValue(connection, "target"), connectionUnblockedEvent.getConnection());
+		assertThat(connectionUnblockedEvent).isNotNull();
+		assertThat(connectionUnblockedEvent.getConnection()).isSameAs(TestUtils.getPropertyValue(connection, "target"));
 		context.close();
 	}
 

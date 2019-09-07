@@ -1,11 +1,11 @@
 /*
- * Copyright 2017 the original author or authors.
+ * Copyright 2017-2019 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,7 +16,7 @@
 
 package org.springframework.amqp.rabbit.core;
 
-import static org.junit.Assert.assertTrue;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import org.junit.jupiter.api.Test;
 
@@ -62,16 +62,16 @@ public class RabbitTemplateMPPIntegrationTests {
 	@Test // 2.0.x only
 	public void testMPPsAppliedDirectReplyToContainerTests() {
 		this.template.sendAndReceive(new Message("foo".getBytes(), new MessageProperties()));
-		assertTrue("before MPP not called", this.config.beforeMppCalled);
-		assertTrue("after MPP not called", this.config.afterMppCalled);
+		assertThat(this.config.beforeMppCalled).as("before MPP not called").isTrue();
+		assertThat(this.config.afterMppCalled).as("after MPP not called").isTrue();
 	}
 
 	@Test
 	public void testMPPsAppliedDirectReplyToTests() {
 		this.template.setUseDirectReplyToContainer(false);
 		this.template.sendAndReceive(new Message("foo".getBytes(), new MessageProperties()));
-		assertTrue("before MPP not called", this.config.beforeMppCalled);
-		assertTrue("after MPP not called", this.config.afterMppCalled);
+		assertThat(this.config.beforeMppCalled).as("before MPP not called").isTrue();
+		assertThat(this.config.afterMppCalled).as("after MPP not called").isTrue();
 	}
 
 	@Test
@@ -79,8 +79,8 @@ public class RabbitTemplateMPPIntegrationTests {
 		this.template.setUseDirectReplyToContainer(false);
 		this.template.setUseTemporaryReplyQueues(true);
 		this.template.sendAndReceive(new Message("foo".getBytes(), new MessageProperties()));
-		assertTrue("before MPP not called", this.config.beforeMppCalled);
-		assertTrue("after MPP not called", this.config.afterMppCalled);
+		assertThat(this.config.beforeMppCalled).as("before MPP not called").isTrue();
+		assertThat(this.config.afterMppCalled).as("after MPP not called").isTrue();
 	}
 
 	@Test
@@ -94,8 +94,8 @@ public class RabbitTemplateMPPIntegrationTests {
 			container.afterPropertiesSet();
 			container.start();
 			this.template.sendAndReceive(new Message("foo".getBytes(), new MessageProperties()));
-			assertTrue("before MPP not called", this.config.beforeMppCalled);
-			assertTrue("after MPP not called", this.config.afterMppCalled);
+			assertThat(this.config.beforeMppCalled).as("before MPP not called").isTrue();
+			assertThat(this.config.afterMppCalled).as("after MPP not called").isTrue();
 		}
 		finally {
 			container.stop();

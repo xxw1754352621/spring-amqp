@@ -1,11 +1,11 @@
 /*
- * Copyright 2018 the original author or authors.
+ * Copyright 2018-2019 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,9 +16,7 @@
 
 package org.springframework.amqp.rabbit.core;
 
-import static org.hamcrest.Matchers.equalTo;
-import static org.junit.Assert.assertThat;
-import static org.junit.Assert.assertTrue;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -27,6 +25,7 @@ import org.junit.jupiter.api.Test;
 
 import org.springframework.amqp.core.MessageProperties;
 import org.springframework.amqp.rabbit.connection.CachingConnectionFactory;
+import org.springframework.amqp.rabbit.connection.CachingConnectionFactory.ConfirmType;
 import org.springframework.amqp.rabbit.junit.RabbitAvailable;
 
 /**
@@ -43,27 +42,28 @@ public class SimplePublisherConfirmsTests {
 	@Test
 	public void testConfirms() {
 		CachingConnectionFactory cf = new CachingConnectionFactory("localhost");
-		cf.setSimplePublisherConfirms(true);
+		cf.setPublisherConfirmType(ConfirmType.SIMPLE);
 		RabbitTemplate template = new RabbitTemplate(cf);
 		template.setRoutingKey(QUEUE);
-		assertTrue(template.invoke(t -> {
+		Boolean invokeResult = template.invoke(t -> {
 			template.convertAndSend("foo");
 			template.convertAndSend("bar");
 			template.waitForConfirmsOrDie(10_000);
 			return true;
-		}));
+		});
+		assertThat(invokeResult).isTrue();
 		cf.destroy();
 	}
 
 	@Test
 	public void testConfirmsWithCallbacks() {
 		CachingConnectionFactory cf = new CachingConnectionFactory("localhost");
-		cf.setSimplePublisherConfirms(true);
+		cf.setPublisherConfirmType(ConfirmType.SIMPLE);
 		RabbitTemplate template = new RabbitTemplate(cf);
 		template.setRoutingKey(QUEUE);
 		AtomicReference<MessageProperties> finalProperties = new AtomicReference<>();
 		AtomicLong lastAck = new AtomicLong();
-		assertTrue(template.invoke(t -> {
+		Boolean invokeResult = template.invoke(t -> {
 			template.convertAndSend("foo");
 			template.convertAndSend("bar", m -> {
 				finalProperties.set(m.getMessageProperties());
@@ -73,8 +73,10 @@ public class SimplePublisherConfirmsTests {
 			return true;
 		}, (tag, multiple) -> {
 			lastAck.set(tag);
-		}, (tag, multiple) -> { }));
-		assertThat(lastAck.get(), equalTo(finalProperties.get().getPublishSequenceNumber()));
+		}, (tag, multiple) -> {
+		});
+		assertThat(invokeResult).isTrue();
+		assertThat(lastAck.get()).isEqualTo(finalProperties.get().getPublishSequenceNumber());
 		cf.destroy();
 	}
 

@@ -1,11 +1,11 @@
 /*
- * Copyright 2014-2016 the original author or authors.
+ * Copyright 2014-2019 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package org.springframework.amqp.rabbit.core.support;
+package org.springframework.amqp.rabbit.batch;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -22,9 +22,13 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
 import java.util.List;
+import java.util.function.Consumer;
 
 import org.springframework.amqp.core.Message;
 import org.springframework.amqp.core.MessageProperties;
+import org.springframework.amqp.rabbit.support.ListenerExecutionFailedException;
+import org.springframework.amqp.support.AmqpHeaders;
+import org.springframework.amqp.support.converter.MessageConversionException;
 import org.springframework.util.Assert;
 
 /**
@@ -66,25 +70,26 @@ public class SimpleBatchingStrategy implements BatchingStrategy {
 	}
 
 	@Override
-	public MessageBatch addToBatch(String exchange, String routingKey, Message message) {
+	public MessageBatch addToBatch(String exch, String routKey, Message message) {
 		if (this.exchange != null) {
-			Assert.isTrue(this.exchange.equals(exchange), "Cannot send to different exchanges in the same batch");
+			Assert.isTrue(this.exchange.equals(exch), "Cannot send to different exchanges in the same batch");
 		}
 		else {
-			this.exchange = exchange;
+			this.exchange = exch;
 		}
 		if (this.routingKey != null) {
-			Assert.isTrue(this.routingKey.equals(routingKey), "Cannot send with different routing keys in the same batch");
+			Assert.isTrue(this.routingKey.equals(routKey),
+					"Cannot send with different routing keys in the same batch");
 		}
 		else {
-			this.routingKey = routingKey;
+			this.routingKey = routKey;
 		}
 		int bufferUse = Integer.BYTES + message.getBody().length;
 		MessageBatch batch = null;
 		if (this.messages.size() > 0 && this.currentSize + bufferUse > this.bufferLimit) {
 			batch = doReleaseBatch();
-			this.exchange = exchange;
-			this.routingKey = routingKey;
+			this.exchange = exch;
+			this.routingKey = routKey;
 		}
 		this.currentSize += bufferUse;
 		this.messages.add(message);
@@ -144,8 +149,48 @@ public class SimpleBatchingStrategy implements BatchingStrategy {
 			bytes.putInt(message.getBody().length);
 			bytes.put(message.getBody());
 		}
-		messageProperties.getHeaders().put(MessageProperties.SPRING_BATCH_FORMAT, MessageProperties.BATCH_FORMAT_LENGTH_HEADER4);
+		messageProperties.getHeaders().put(MessageProperties.SPRING_BATCH_FORMAT,
+				MessageProperties.BATCH_FORMAT_LENGTH_HEADER4);
+		messageProperties.getHeaders().put(AmqpHeaders.BATCH_SIZE, this.messages.size());
 		return new Message(body, messageProperties);
+	}
+
+	@Override
+	public boolean canDebatch(MessageProperties properties) {
+		return MessageProperties.BATCH_FORMAT_LENGTH_HEADER4.equals(properties
+				.getHeaders()
+				.get(MessageProperties.SPRING_BATCH_FORMAT));
+	}
+
+	/**
+	 * Debatch a message that has a header with {@link MessageProperties#SPRING_BATCH_FORMAT}
+	 * set to {@link MessageProperties#BATCH_FORMAT_LENGTH_HEADER4}.
+	 * @param message the batched message.
+	 * @param fragmentConsumer a consumer for each fragment.
+	 * @since 2.2
+	 */
+	@Override
+	public void deBatch(Message message, Consumer<Message> fragmentConsumer) {
+		ByteBuffer byteBuffer = ByteBuffer.wrap(message.getBody());
+		MessageProperties messageProperties = message.getMessageProperties();
+		messageProperties.getHeaders().remove(MessageProperties.SPRING_BATCH_FORMAT);
+		while (byteBuffer.hasRemaining()) {
+			int length = byteBuffer.getInt();
+			if (length < 0 || length > byteBuffer.remaining()) {
+				throw new ListenerExecutionFailedException("Bad batched message received",
+						new MessageConversionException("Insufficient batch data at offset " + byteBuffer.position()),
+						message);
+			}
+			byte[] body = new byte[length];
+			byteBuffer.get(body);
+			messageProperties.setContentLength(length);
+			// Caveat - shared MessageProperties.
+			Message fragment = new Message(body, messageProperties);
+			if (!byteBuffer.hasRemaining()) {
+				messageProperties.setLastInBatch(true);
+			}
+			fragmentConsumer.accept(fragment);
+		}
 	}
 
 }

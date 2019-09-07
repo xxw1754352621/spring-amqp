@@ -1,11 +1,11 @@
 /*
- * Copyright 2017-2018 the original author or authors.
+ * Copyright 2017-2019 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,9 +16,7 @@
 
 package org.springframework.amqp.rabbit.listener;
 
-import static org.hamcrest.CoreMatchers.equalTo;
-import static org.junit.Assert.assertThat;
-import static org.junit.Assert.assertTrue;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
@@ -28,6 +26,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.willAnswer;
+import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -39,9 +38,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
+import org.springframework.amqp.core.AcknowledgeMode;
+import org.springframework.amqp.core.MessageListener;
 import org.springframework.amqp.rabbit.connection.ChannelProxy;
 import org.springframework.amqp.rabbit.connection.Connection;
 import org.springframework.amqp.rabbit.connection.ConnectionFactory;
@@ -99,10 +100,10 @@ public class DirectMessageListenerContainerMockTests {
 		container.afterPropertiesSet();
 		container.start();
 
-		assertTrue(latch1.await(10, TimeUnit.SECONDS));
-		assertThat(qos.get(), equalTo(2));
+		assertThat(latch1.await(10, TimeUnit.SECONDS)).isTrue();
+		assertThat(qos.get()).isEqualTo(2);
 		isOpen.set(false);
-		assertTrue(latch2.await(10, TimeUnit.SECONDS));
+		assertThat(latch2.await(10, TimeUnit.SECONDS)).isTrue();
 		container.stop();
 	}
 
@@ -166,8 +167,8 @@ public class DirectMessageListenerContainerMockTests {
 		container.afterPropertiesSet();
 		container.start();
 
-		assertTrue(latch1.await(10, TimeUnit.SECONDS));
-		assertThat(qos.get(), equalTo(10));
+		assertThat(latch1.await(10, TimeUnit.SECONDS)).isTrue();
+		assertThat(qos.get()).isEqualTo(10);
 		BasicProperties props = new BasicProperties();
 		byte[] body = new byte[1];
 		for (long i = 1; i < 16; i++) {
@@ -175,17 +176,17 @@ public class DirectMessageListenerContainerMockTests {
 		}
 		Thread.sleep(200);
 		consumer.get().handleDelivery("consumerTag", envelope(16), props, body);
-		// should get 2 acks #10 and #6 (timeout)
-		assertTrue(latch2.await(10, TimeUnit.SECONDS));
+		// should get 2 acks #10 and #16 (timeout)
+		assertThat(latch2.await(10, TimeUnit.SECONDS)).isTrue();
 		consumer.get().handleDelivery("consumerTag", envelope(17), props, body);
 		verify(channel).basicAck(10L, true);
 		verify(channel).basicAck(16L, true);
-		assertTrue(latch3.await(10, TimeUnit.SECONDS));
+		assertThat(latch3.await(10, TimeUnit.SECONDS)).isTrue();
 		// monitor task timeout
 		verify(channel).basicAck(17L, true);
 		consumer.get().handleDelivery("consumerTag", envelope(18), props, body);
 		consumer.get().handleDelivery("consumerTag", envelope(19), props, body);
-		assertTrue(latch4.await(10, TimeUnit.SECONDS));
+		assertThat(latch4.await(10, TimeUnit.SECONDS)).isTrue();
 		// pending acks before nack
 		verify(channel).basicAck(18L, true);
 		verify(channel).basicNack(19L, true, true);
@@ -197,7 +198,7 @@ public class DirectMessageListenerContainerMockTests {
 			return null;
 		}).given(channel).basicCancel("consumerTag");
 		Executors.newSingleThreadExecutor().execute(container::stop);
-		assertTrue(latch5.await(10, TimeUnit.SECONDS));
+		assertThat(latch5.await(10, TimeUnit.SECONDS)).isTrue();
 		// pending acks on stop
 		verify(channel).basicAck(20L, true);
 	}
@@ -249,19 +250,113 @@ public class DirectMessageListenerContainerMockTests {
 		container.afterPropertiesSet();
 		container.start();
 
-		assertTrue(latch1.await(10, TimeUnit.SECONDS));
-		assertThat(qos.get(), equalTo(2));
+		assertThat(latch1.await(10, TimeUnit.SECONDS)).isTrue();
+		assertThat(qos.get()).isEqualTo(2);
 		isOpen.set(false);
 		container.removeQueueNames("test1");
-		assertTrue(latch2.await(10, TimeUnit.SECONDS));
+		assertThat(latch2.await(10, TimeUnit.SECONDS)).isTrue();
 		isOpen.set(true);
-		assertTrue(latch3.await(10, TimeUnit.SECONDS));
+		assertThat(latch3.await(10, TimeUnit.SECONDS)).isTrue();
 
 		verify(channel, times(1)).basicConsume(eq("test1"), anyBoolean(), anyString(), anyBoolean(), anyBoolean(),
 				anyMap(), any(Consumer.class));
 		verify(channel, times(2)).basicConsume(eq("test2"), anyBoolean(), anyString(), anyBoolean(), anyBoolean(),
 				anyMap(), any(Consumer.class));
 
+		container.stop();
+	}
+
+	@Test
+	public void testMonitorCancelsAfterBadAckEvenIfChannelReportsOpen() throws Exception {
+		ConnectionFactory connectionFactory = mock(ConnectionFactory.class);
+		Connection connection = mock(Connection.class);
+		ChannelProxy channel = mock(ChannelProxy.class);
+		Channel rabbitChannel = mock(Channel.class);
+		given(channel.getTargetChannel()).willReturn(rabbitChannel);
+
+		given(connectionFactory.createConnection()).willReturn(connection);
+		given(connection.createChannel(anyBoolean())).willReturn(channel);
+		given(channel.isOpen()).willReturn(true);
+		given(channel.queueDeclarePassive(Mockito.anyString()))
+				.willAnswer(invocation -> mock(AMQP.Queue.DeclareOk.class));
+		AtomicReference<Consumer> consumer = new AtomicReference<>();
+		final CountDownLatch latch1 = new CountDownLatch(1);
+		final CountDownLatch latch2 = new CountDownLatch(1);
+		willAnswer(inv -> {
+			consumer.set(inv.getArgument(6));
+			latch1.countDown();
+			return "consumerTag";
+		}).given(channel).basicConsume(anyString(), anyBoolean(), anyString(), anyBoolean(), anyBoolean(),
+						anyMap(), any(Consumer.class));
+
+		willThrow(new RuntimeException("bad ack")).given(channel).basicAck(1L, false);
+		willAnswer(inv -> {
+			consumer.get().handleCancelOk("consumerTag");
+			latch2.countDown();
+			return null;
+		}).given(channel).basicCancel("consumerTag");
+
+		DirectMessageListenerContainer container = new DirectMessageListenerContainer(connectionFactory);
+		container.setQueueNames("test");
+		container.setPrefetchCount(2);
+		container.setMonitorInterval(100);
+		container.setMessageListener(mock(MessageListener.class));
+		container.afterPropertiesSet();
+		container.start();
+
+		assertThat(latch1.await(10, TimeUnit.SECONDS)).isTrue();
+		consumer.get().handleDelivery("consumerTag", envelope(1L), new BasicProperties(), new byte[1]);
+		assertThat(latch2.await(10, TimeUnit.SECONDS)).isTrue();
+		container.stop();
+	}
+
+	@Test
+	public void testMonitorCancelsAfterTargetChannelChanges() throws Exception {
+		ConnectionFactory connectionFactory = mock(ConnectionFactory.class);
+		Connection connection = mock(Connection.class);
+		ChannelProxy channel = mock(ChannelProxy.class);
+		Channel rabbitChannel1 = mock(Channel.class);
+		Channel rabbitChannel2 = mock(Channel.class);
+		AtomicReference<Channel> target = new AtomicReference<>(rabbitChannel1);
+		willAnswer(inv -> {
+			return target.get();
+		}).given(channel).getTargetChannel();
+
+		given(connectionFactory.createConnection()).willReturn(connection);
+		given(connection.createChannel(anyBoolean())).willReturn(channel);
+		given(channel.isOpen()).willReturn(true);
+		given(channel.queueDeclarePassive(Mockito.anyString()))
+				.willAnswer(invocation -> mock(AMQP.Queue.DeclareOk.class));
+		AtomicReference<Consumer> consumer = new AtomicReference<>();
+		final CountDownLatch latch1 = new CountDownLatch(1);
+		final CountDownLatch latch2 = new CountDownLatch(1);
+		willAnswer(inv -> {
+			consumer.set(inv.getArgument(6));
+			latch1.countDown();
+			return "consumerTag";
+		}).given(channel).basicConsume(anyString(), anyBoolean(), anyString(), anyBoolean(), anyBoolean(),
+						anyMap(), any(Consumer.class));
+
+		willAnswer(inv -> {
+			consumer.get().handleCancelOk("consumerTag");
+			latch2.countDown();
+			return null;
+		}).given(channel).basicCancel("consumerTag");
+
+		DirectMessageListenerContainer container = new DirectMessageListenerContainer(connectionFactory);
+		container.setQueueNames("test");
+		container.setPrefetchCount(2);
+		container.setMonitorInterval(100);
+		container.setMessageListener(msg -> {
+			target.set(rabbitChannel2);
+		});
+		container.setAcknowledgeMode(AcknowledgeMode.MANUAL);
+		container.afterPropertiesSet();
+		container.start();
+
+		assertThat(latch1.await(10, TimeUnit.SECONDS)).isTrue();
+		consumer.get().handleDelivery("consumerTag", envelope(1L), new BasicProperties(), new byte[1]);
+		assertThat(latch2.await(10, TimeUnit.SECONDS)).isTrue();
 		container.stop();
 	}
 

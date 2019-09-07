@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,12 +16,7 @@
 
 package org.springframework.amqp.rabbit.core;
 
-import static org.hamcrest.Matchers.containsString;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertThat;
-import static org.junit.Assert.assertTrue;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doNothing;
@@ -36,14 +31,14 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.zip.Deflater;
 
 import org.apache.commons.logging.Log;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
 import org.springframework.amqp.AmqpException;
@@ -52,13 +47,15 @@ import org.springframework.amqp.core.MessageDeliveryMode;
 import org.springframework.amqp.core.MessageListener;
 import org.springframework.amqp.core.MessagePostProcessor;
 import org.springframework.amqp.core.MessageProperties;
+import org.springframework.amqp.rabbit.batch.BatchingStrategy;
+import org.springframework.amqp.rabbit.batch.SimpleBatchingStrategy;
 import org.springframework.amqp.rabbit.connection.CachingConnectionFactory;
-import org.springframework.amqp.rabbit.core.support.BatchingStrategy;
-import org.springframework.amqp.rabbit.core.support.SimpleBatchingStrategy;
-import org.springframework.amqp.rabbit.junit.BrokerRunning;
 import org.springframework.amqp.rabbit.junit.BrokerTestUtils;
+import org.springframework.amqp.rabbit.junit.RabbitAvailable;
+import org.springframework.amqp.rabbit.junit.RabbitAvailableCondition;
 import org.springframework.amqp.rabbit.listener.ConditionalRejectingErrorHandler;
 import org.springframework.amqp.rabbit.listener.SimpleMessageListenerContainer;
+import org.springframework.amqp.support.AmqpHeaders;
 import org.springframework.amqp.support.postprocessor.AbstractCompressingPostProcessor;
 import org.springframework.amqp.support.postprocessor.DelegatingDecompressingPostProcessor;
 import org.springframework.amqp.support.postprocessor.GUnzipPostProcessor;
@@ -79,18 +76,16 @@ import org.springframework.util.StopWatch;
  * @since 1.4.1
  *
  */
+@RabbitAvailable(queues = BatchingRabbitTemplateTests.ROUTE)
 public class BatchingRabbitTemplateTests {
 
-	private static final String ROUTE = "test.queue";
-
-	@Rule
-	public BrokerRunning brokerIsRunning = BrokerRunning.isRunningWithEmptyQueues(ROUTE);
+	public static final String ROUTE = "test.queue.BatchingRabbitTemplateTests";
 
 	private CachingConnectionFactory connectionFactory;
 
 	private ThreadPoolTaskScheduler scheduler;
 
-	@Before
+	@BeforeEach
 	public void setup() {
 		this.connectionFactory = new CachingConnectionFactory();
 		this.connectionFactory.setHost("localhost");
@@ -100,9 +95,9 @@ public class BatchingRabbitTemplateTests {
 		scheduler.initialize();
 	}
 
-	@After
+	@AfterEach
 	public void tearDown() {
-		this.brokerIsRunning.removeTestQueues();
+		RabbitAvailableCondition.getBrokerRunning().purgeTestQueues();
 		this.connectionFactory.destroy();
 	}
 
@@ -117,7 +112,7 @@ public class BatchingRabbitTemplateTests {
 		message = new Message("bar".getBytes(), props);
 		template.send("", ROUTE, message);
 		message = receive(template);
-		assertEquals("\u0000\u0000\u0000\u0003foo\u0000\u0000\u0000\u0003bar", new String(message.getBody()));
+		assertThat(new String(message.getBody())).isEqualTo("\u0000\u0000\u0000\u0003foo\u0000\u0000\u0000\u0003bar");
 	}
 
 	@Test
@@ -129,7 +124,7 @@ public class BatchingRabbitTemplateTests {
 		Message message = new Message("foo".getBytes(), props);
 		template.send("", ROUTE, message);
 		message = receive(template);
-		assertEquals("foo", new String(message.getBody()));
+		assertThat(new String(message.getBody())).isEqualTo("foo");
 	}
 
 	@Test
@@ -142,7 +137,7 @@ public class BatchingRabbitTemplateTests {
 		template.send("", ROUTE, message);
 		template.send("", ROUTE, message);
 		message = receive(template);
-		assertEquals("\u0000\u0000\u0000\u0003foo\u0000\u0000\u0000\u0003foo", new String(message.getBody()));
+		assertThat(new String(message.getBody())).isEqualTo("\u0000\u0000\u0000\u0003foo\u0000\u0000\u0000\u0003foo");
 	}
 
 	@Test
@@ -156,9 +151,9 @@ public class BatchingRabbitTemplateTests {
 		message = new Message("bar".getBytes(), props);
 		template.send("", ROUTE, message);
 		message = receive(template);
-		assertEquals("foo", new String(message.getBody()));
+		assertThat(new String(message.getBody())).isEqualTo("foo");
 		message = receive(template);
-		assertEquals("bar", new String(message.getBody()));
+		assertThat(new String(message.getBody())).isEqualTo("bar");
 	}
 
 	@Test
@@ -174,9 +169,9 @@ public class BatchingRabbitTemplateTests {
 		template.send("", ROUTE, message);
 		template.send("", ROUTE, message);
 		message = receive(template);
-		assertEquals("\u0000\u0000\u0000\u0003foo\u0000\u0000\u0000\u0003foo", new String(message.getBody()));
+		assertThat(new String(message.getBody())).isEqualTo("\u0000\u0000\u0000\u0003foo\u0000\u0000\u0000\u0003foo");
 		message = receive(template);
-		assertEquals("\u0000\u0000\u0000\u0003bar\u0000\u0000\u0000\u0003bar", new String(message.getBody()));
+		assertThat(new String(message.getBody())).isEqualTo("\u0000\u0000\u0000\u0003bar\u0000\u0000\u0000\u0003bar");
 	}
 
 	@Test
@@ -190,9 +185,9 @@ public class BatchingRabbitTemplateTests {
 		message = new Message("bar".getBytes(), props);
 		template.send("", ROUTE, message);
 		message = receive(template);
-		assertEquals("foo", new String(message.getBody()));
+		assertThat(new String(message.getBody())).isEqualTo("foo");
 		message = receive(template);
-		assertEquals("bar", new String(message.getBody()));
+		assertThat(new String(message.getBody())).isEqualTo("bar");
 	}
 
 	@Test
@@ -207,9 +202,9 @@ public class BatchingRabbitTemplateTests {
 		message = new Message("bar".getBytes(), props);
 		template.send("", ROUTE, message);
 		message = receive(template);
-		assertEquals("f", new String(message.getBody()));
+		assertThat(new String(message.getBody())).isEqualTo("f");
 		message = receive(template);
-		assertEquals("bar", new String(message.getBody()));
+		assertThat(new String(message.getBody())).isEqualTo("bar");
 	}
 
 	@Test
@@ -223,7 +218,7 @@ public class BatchingRabbitTemplateTests {
 		message = new Message("bar".getBytes(), props);
 		template.send("", ROUTE, message);
 		message = receive(template);
-		assertEquals("\u0000\u0000\u0000\u0003foo\u0000\u0000\u0000\u0003bar", new String(message.getBody()));
+		assertThat(new String(message.getBody())).isEqualTo("\u0000\u0000\u0000\u0003foo\u0000\u0000\u0000\u0003bar");
 	}
 
 	@Test
@@ -232,8 +227,12 @@ public class BatchingRabbitTemplateTests {
 		final CountDownLatch latch = new CountDownLatch(2);
 		SimpleMessageListenerContainer container = new SimpleMessageListenerContainer(this.connectionFactory);
 		container.setQueueNames(ROUTE);
+		List<Boolean> lastInBatch = new ArrayList<>();
+		AtomicInteger batchSize = new AtomicInteger();
 		container.setMessageListener((MessageListener) message -> {
 			received.add(message);
+			lastInBatch.add(message.getMessageProperties().isLastInBatch());
+			batchSize.set(message.getMessageProperties().getHeader(AmqpHeaders.BATCH_SIZE));
 			latch.countDown();
 		});
 		container.setReceiveTimeout(100);
@@ -248,12 +247,15 @@ public class BatchingRabbitTemplateTests {
 			template.send("", ROUTE, message);
 			message = new Message("bar".getBytes(), props);
 			template.send("", ROUTE, message);
-			assertTrue(latch.await(10,  TimeUnit.SECONDS));
-			assertEquals(2, received.size());
-			assertEquals("foo", new String(received.get(0).getBody()));
-			assertEquals(3, received.get(0).getMessageProperties().getContentLength());
-			assertEquals("bar", new String(received.get(1).getBody()));
-			assertEquals(3, received.get(0).getMessageProperties().getContentLength());
+			assertThat(latch.await(10, TimeUnit.SECONDS)).isTrue();
+			assertThat(received).hasSize(2);
+			assertThat(new String(received.get(0).getBody())).isEqualTo("foo");
+			assertThat(received.get(0).getMessageProperties().getContentLength()).isEqualTo(3);
+			assertThat(lastInBatch.get(0)).isFalse();
+			assertThat(new String(received.get(1).getBody())).isEqualTo("bar");
+			assertThat(received.get(0).getMessageProperties().getContentLength()).isEqualTo(3);
+			assertThat(lastInBatch.get(1)).isTrue();
+			assertThat(batchSize.get()).isEqualTo(2);
 		}
 		finally {
 			container.stop();
@@ -273,7 +275,7 @@ public class BatchingRabbitTemplateTests {
 		});
 		container.setReceiveTimeout(100);
 		container.setPrefetchCount(1000);
-		container.setTxSize(1000);
+		container.setBatchSize(1000);
 		container.afterPropertiesSet();
 		container.start();
 		try {
@@ -289,10 +291,10 @@ public class BatchingRabbitTemplateTests {
 			for (int i = 0; i < count; i++) {
 				template.send("", ROUTE, message);
 			}
-			assertTrue(latch.await(60,  TimeUnit.SECONDS));
+			assertThat(latch.await(60, TimeUnit.SECONDS)).isTrue();
 			watch.stop();
 			// System .out .println(watch.getTotalTimeMillis());
-			assertEquals(count, received.size());
+			assertThat(received).hasSize(count);
 		}
 		finally {
 			container.stop();
@@ -324,7 +326,7 @@ public class BatchingRabbitTemplateTests {
 			ArgumentCaptor<Object> arg1 = ArgumentCaptor.forClass(Object.class);
 			ArgumentCaptor<Throwable> arg2 = ArgumentCaptor.forClass(Throwable.class);
 			verify(logger).warn(arg1.capture(), arg2.capture());
-			assertThat(arg2.getValue().getMessage(), containsString("Bad batched message received"));
+			assertThat(arg2.getValue().getMessage()).contains("Bad batched message received");
 		}
 		finally {
 			container.stop();
@@ -337,7 +339,7 @@ public class BatchingRabbitTemplateTests {
 		BatchingRabbitTemplate template = new BatchingRabbitTemplate(batchingStrategy, this.scheduler);
 		template.setConnectionFactory(this.connectionFactory);
 		GZipPostProcessor gZipPostProcessor = new GZipPostProcessor();
-		assertEquals(Deflater.BEST_SPEED, getStreamLevel(gZipPostProcessor));
+		assertThat(getStreamLevel(gZipPostProcessor)).isEqualTo(Deflater.BEST_SPEED);
 		template.setBeforePublishPostProcessors(gZipPostProcessor);
 		MessageProperties props = new MessageProperties();
 		Message message = new Message("foo".getBytes(), props);
@@ -345,10 +347,10 @@ public class BatchingRabbitTemplateTests {
 		message = new Message("bar".getBytes(), props);
 		template.send("", ROUTE, message);
 		message = receive(template);
-		assertEquals("gzip", message.getMessageProperties().getContentEncoding());
+		assertThat(message.getMessageProperties().getContentEncoding()).isEqualTo("gzip");
 		GUnzipPostProcessor unzipper = new GUnzipPostProcessor();
 		message = unzipper.postProcessMessage(message);
-		assertEquals("\u0000\u0000\u0000\u0003foo\u0000\u0000\u0000\u0003bar", new String(message.getBody()));
+		assertThat(new String(message.getBody())).isEqualTo("\u0000\u0000\u0000\u0003foo\u0000\u0000\u0000\u0003bar");
 	}
 
 	@Test
@@ -357,7 +359,7 @@ public class BatchingRabbitTemplateTests {
 		BatchingRabbitTemplate template = new BatchingRabbitTemplate(batchingStrategy, this.scheduler);
 		template.setConnectionFactory(this.connectionFactory);
 		GZipPostProcessor gZipPostProcessor = new GZipPostProcessor();
-		assertEquals(Deflater.BEST_SPEED, getStreamLevel(gZipPostProcessor));
+		assertThat(getStreamLevel(gZipPostProcessor)).isEqualTo(Deflater.BEST_SPEED);
 		template.addBeforePublishPostProcessors(gZipPostProcessor);
 		MessageProperties props = new MessageProperties();
 		Message message = new Message("foo".getBytes(), props);
@@ -365,10 +367,10 @@ public class BatchingRabbitTemplateTests {
 		message = new Message("bar".getBytes(), props);
 		template.send("", ROUTE, message);
 		message = receive(template);
-		assertEquals("gzip", message.getMessageProperties().getContentEncoding());
+		assertThat(message.getMessageProperties().getContentEncoding()).isEqualTo("gzip");
 		GUnzipPostProcessor unzipper = new GUnzipPostProcessor();
 		message = unzipper.postProcessMessage(message);
-		assertEquals("\u0000\u0000\u0000\u0003foo\u0000\u0000\u0000\u0003bar", new String(message.getBody()));
+		assertThat(new String(message.getBody())).isEqualTo("\u0000\u0000\u0000\u0003foo\u0000\u0000\u0000\u0003bar");
 	}
 
 	@Test
@@ -377,7 +379,7 @@ public class BatchingRabbitTemplateTests {
 		BatchingRabbitTemplate template = new BatchingRabbitTemplate(batchingStrategy, this.scheduler);
 		template.setConnectionFactory(this.connectionFactory);
 		GZipPostProcessor gZipPostProcessor = new GZipPostProcessor();
-		assertEquals(Deflater.BEST_SPEED, getStreamLevel(gZipPostProcessor));
+		assertThat(getStreamLevel(gZipPostProcessor)).isEqualTo(Deflater.BEST_SPEED);
 		template.addBeforePublishPostProcessors(gZipPostProcessor);
 		HeaderPostProcessor headerPostProcessor = new HeaderPostProcessor();
 		template.addBeforePublishPostProcessors(headerPostProcessor);
@@ -388,11 +390,11 @@ public class BatchingRabbitTemplateTests {
 		message = new Message("bar".getBytes(), props);
 		template.send("", ROUTE, message);
 		message = receive(template);
-		assertEquals("gzip", message.getMessageProperties().getContentEncoding());
+		assertThat(message.getMessageProperties().getContentEncoding()).isEqualTo("gzip");
 		GUnzipPostProcessor unzipper = new GUnzipPostProcessor();
 		message = unzipper.postProcessMessage(message);
-		assertEquals("\u0000\u0000\u0000\u0003foo\u0000\u0000\u0000\u0003bar", new String(message.getBody()));
-		assertNull(message.getMessageProperties().getHeaders().get("someHeader"));
+		assertThat(new String(message.getBody())).isEqualTo("\u0000\u0000\u0000\u0003foo\u0000\u0000\u0000\u0003bar");
+		assertThat(message.getMessageProperties().getHeaders().get("someHeader")).isNull();
 	}
 
 	@Test
@@ -402,7 +404,7 @@ public class BatchingRabbitTemplateTests {
 		template.setConnectionFactory(this.connectionFactory);
 		GZipPostProcessor gZipPostProcessor = new GZipPostProcessor();
 		gZipPostProcessor.setLevel(Deflater.BEST_COMPRESSION);
-		assertEquals(Deflater.BEST_COMPRESSION, getStreamLevel(gZipPostProcessor));
+		assertThat(getStreamLevel(gZipPostProcessor)).isEqualTo(Deflater.BEST_COMPRESSION);
 		template.setBeforePublishPostProcessors(gZipPostProcessor);
 		template.setAfterReceivePostProcessors(new GUnzipPostProcessor());
 		MessageProperties props = new MessageProperties();
@@ -411,8 +413,8 @@ public class BatchingRabbitTemplateTests {
 		message = new Message("bar".getBytes(), props);
 		template.send("", ROUTE, message);
 		message = receive(template);
-		assertNull(message.getMessageProperties().getContentEncoding());
-		assertEquals("\u0000\u0000\u0000\u0003foo\u0000\u0000\u0000\u0003bar", new String(message.getBody()));
+		assertThat(message.getMessageProperties().getContentEncoding()).isNull();
+		assertThat(new String(message.getBody())).isEqualTo("\u0000\u0000\u0000\u0003foo\u0000\u0000\u0000\u0003bar");
 	}
 
 	@Test
@@ -422,7 +424,7 @@ public class BatchingRabbitTemplateTests {
 		template.setConnectionFactory(this.connectionFactory);
 		GZipPostProcessor gZipPostProcessor = new GZipPostProcessor();
 		gZipPostProcessor.setLevel(Deflater.BEST_COMPRESSION);
-		assertEquals(Deflater.BEST_COMPRESSION, getStreamLevel(gZipPostProcessor));
+		assertThat(getStreamLevel(gZipPostProcessor)).isEqualTo(Deflater.BEST_COMPRESSION);
 		template.addBeforePublishPostProcessors(gZipPostProcessor);
 		template.addAfterReceivePostProcessors(new GUnzipPostProcessor());
 		MessageProperties props = new MessageProperties();
@@ -431,8 +433,8 @@ public class BatchingRabbitTemplateTests {
 		message = new Message("bar".getBytes(), props);
 		template.send("", ROUTE, message);
 		message = receive(template);
-		assertNull(message.getMessageProperties().getContentEncoding());
-		assertEquals("\u0000\u0000\u0000\u0003foo\u0000\u0000\u0000\u0003bar", new String(message.getBody()));
+		assertThat(message.getMessageProperties().getContentEncoding()).isNull();
+		assertThat(new String(message.getBody())).isEqualTo("\u0000\u0000\u0000\u0003foo\u0000\u0000\u0000\u0003bar");
 	}
 
 	@Test
@@ -448,10 +450,10 @@ public class BatchingRabbitTemplateTests {
 		message = new Message("bar".getBytes(), props);
 		template.send("", ROUTE, message);
 		message = receive(template);
-		assertEquals("gzip:foo", message.getMessageProperties().getContentEncoding());
+		assertThat(message.getMessageProperties().getContentEncoding()).isEqualTo("gzip:foo");
 		GUnzipPostProcessor unzipper = new GUnzipPostProcessor();
 		message = unzipper.postProcessMessage(message);
-		assertEquals("\u0000\u0000\u0000\u0003foo\u0000\u0000\u0000\u0003bar", new String(message.getBody()));
+		assertThat(new String(message.getBody())).isEqualTo("\u0000\u0000\u0000\u0003foo\u0000\u0000\u0000\u0003bar");
 	}
 
 	@Test
@@ -469,8 +471,8 @@ public class BatchingRabbitTemplateTests {
 		template.send("", ROUTE, message);
 		Thread.sleep(100);
 		byte[] out = (byte[]) template.receiveAndConvert(ROUTE);
-		assertNotNull(out);
-		assertEquals("\u0000\u0000\u0000\u0003foo\u0000\u0000\u0000\u0003bar", new String(out));
+		assertThat(out).isNotNull();
+		assertThat(new String(out)).isEqualTo("\u0000\u0000\u0000\u0003foo\u0000\u0000\u0000\u0003bar");
 	}
 
 	@Test
@@ -480,7 +482,7 @@ public class BatchingRabbitTemplateTests {
 		template.setConnectionFactory(this.connectionFactory);
 		ZipPostProcessor zipPostProcessor = new ZipPostProcessor();
 		zipPostProcessor.setLevel(Deflater.BEST_COMPRESSION);
-		assertEquals(Deflater.BEST_COMPRESSION, getStreamLevel(zipPostProcessor));
+		assertThat(getStreamLevel(zipPostProcessor)).isEqualTo(Deflater.BEST_COMPRESSION);
 		template.setBeforePublishPostProcessors(zipPostProcessor);
 		MessageProperties props = new MessageProperties();
 		Message message = new Message("foo".getBytes(), props);
@@ -488,10 +490,10 @@ public class BatchingRabbitTemplateTests {
 		message = new Message("bar".getBytes(), props);
 		template.send("", ROUTE, message);
 		message = receive(template);
-		assertEquals("zip", message.getMessageProperties().getContentEncoding());
+		assertThat(message.getMessageProperties().getContentEncoding()).isEqualTo("zip");
 		UnzipPostProcessor unzipper = new UnzipPostProcessor();
 		message = unzipper.postProcessMessage(message);
-		assertEquals("\u0000\u0000\u0000\u0003foo\u0000\u0000\u0000\u0003bar", new String(message.getBody()));
+		assertThat(new String(message.getBody())).isEqualTo("\u0000\u0000\u0000\u0003foo\u0000\u0000\u0000\u0003bar");
 	}
 
 	@Test
@@ -500,7 +502,7 @@ public class BatchingRabbitTemplateTests {
 		BatchingRabbitTemplate template = new BatchingRabbitTemplate(batchingStrategy, this.scheduler);
 		template.setConnectionFactory(this.connectionFactory);
 		ZipPostProcessor zipPostProcessor = new ZipPostProcessor();
-		assertEquals(Deflater.BEST_SPEED, getStreamLevel(zipPostProcessor));
+		assertThat(getStreamLevel(zipPostProcessor)).isEqualTo(Deflater.BEST_SPEED);
 		template.setBeforePublishPostProcessors(zipPostProcessor);
 		MessageProperties props = new MessageProperties();
 		props.setContentEncoding("foo");
@@ -509,10 +511,10 @@ public class BatchingRabbitTemplateTests {
 		message = new Message("bar".getBytes(), props);
 		template.send("", ROUTE, message);
 		message = receive(template);
-		assertEquals("zip:foo", message.getMessageProperties().getContentEncoding());
+		assertThat(message.getMessageProperties().getContentEncoding()).isEqualTo("zip:foo");
 		UnzipPostProcessor unzipper = new UnzipPostProcessor();
 		message = unzipper.postProcessMessage(message);
-		assertEquals("\u0000\u0000\u0000\u0003foo\u0000\u0000\u0000\u0003bar", new String(message.getBody()));
+		assertThat(new String(message.getBody())).isEqualTo("\u0000\u0000\u0000\u0003foo\u0000\u0000\u0000\u0003bar");
 	}
 
 	private Message receive(BatchingRabbitTemplate template) throws InterruptedException {
@@ -522,7 +524,7 @@ public class BatchingRabbitTemplateTests {
 			Thread.sleep(50);
 			message = template.receive(ROUTE);
 		}
-		assertNotNull(message);
+		assertThat(message).isNotNull();
 		return message;
 	}
 
@@ -550,12 +552,12 @@ public class BatchingRabbitTemplateTests {
 			template.send("", ROUTE, message);
 			message = new Message("bar".getBytes(), props);
 			template.send("", ROUTE, message);
-			assertTrue(latch.await(10,  TimeUnit.SECONDS));
-			assertEquals(2, received.size());
-			assertEquals("foo", new String(received.get(0).getBody()));
-			assertEquals(3, received.get(0).getMessageProperties().getContentLength());
-			assertEquals("bar", new String(received.get(1).getBody()));
-			assertEquals(3, received.get(0).getMessageProperties().getContentLength());
+			assertThat(latch.await(10, TimeUnit.SECONDS)).isTrue();
+			assertThat(received).hasSize(2);
+			assertThat(new String(received.get(0).getBody())).isEqualTo("foo");
+			assertThat(received.get(0).getMessageProperties().getContentLength()).isEqualTo(3);
+			assertThat(new String(received.get(1).getBody())).isEqualTo("bar");
+			assertThat(received.get(0).getMessageProperties().getContentLength()).isEqualTo(3);
 		}
 		finally {
 			container.stop();

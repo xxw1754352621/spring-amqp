@@ -1,11 +1,11 @@
 /*
- * Copyright 2016-2017 the original author or authors.
+ * Copyright 2016-2019 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,27 +16,37 @@
 
 package org.springframework.amqp.rabbit.logback;
 
-import static org.junit.Assert.assertFalse;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 import java.net.URI;
 import java.net.URISyntaxException;
 
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 
+import org.springframework.amqp.UncategorizedAmqpException;
 import org.springframework.amqp.rabbit.connection.RabbitConnectionFactoryBean;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import com.rabbitmq.client.DefaultSaslConfig;
+import com.rabbitmq.client.JDKSaslConfig;
+import com.rabbitmq.client.SaslConfig;
+import com.rabbitmq.client.impl.CRDemoMechanism;
+
 /**
  *
  * @author Stephen Oakey
+ * @author Artem Bilan
  *
  * @since 2.0
  */
@@ -99,6 +109,7 @@ public class AmqpAppenderTests {
 	public void testSslConfigurationWithAlgorithm() {
 		AmqpAppender appender = new AmqpAppender();
 		appender.setUseSsl(true);
+		appender.setVerifyHostname(false);
 		String sslAlgorithm = "TLSv2";
 		appender.setSslAlgorithm(sslAlgorithm);
 
@@ -106,8 +117,9 @@ public class AmqpAppenderTests {
 		appender.configureRabbitConnectionFactory(bean);
 
 		verifyDefaultHostProperties(bean);
-		verify(bean).setUseSSL(eq(true));
-		verify(bean).setSslAlgorithm(eq(sslAlgorithm));
+		verify(bean).setUseSSL(true);
+		verify(bean).setSslAlgorithm(sslAlgorithm);
+		verify(bean).setEnableHostnameVerification(false);
 	}
 
 	@Test
@@ -186,8 +198,48 @@ public class AmqpAppenderTests {
 		appender.setKeyStore("foo");
 		appender.start();
 
-		assertFalse((boolean) ReflectionTestUtils.getField(appender, "started"));
+		assertThat((boolean) ReflectionTestUtils.getField(appender, "started")).isFalse();
 	}
+
+	@Test
+	public void testSasl() {
+		AmqpAppender appender = new AmqpAppender();
+		appender.setUseSsl(true);
+		appender.setSaslConfig("DefaultSaslConfig.PLAIN");
+
+		RabbitConnectionFactoryBean bean = mock(RabbitConnectionFactoryBean.class);
+		appender.configureRabbitConnectionFactory(bean);
+
+		verifyDefaultHostProperties(bean);
+		verify(bean).setUseSSL(eq(true));
+		ArgumentCaptor<SaslConfig> captor = ArgumentCaptor.forClass(SaslConfig.class);
+		verify(bean).setSaslConfig(captor.capture());
+		assertThat(captor.getValue())
+				.isInstanceOf(DefaultSaslConfig.class)
+				.hasFieldOrPropertyWithValue("mechanism", "PLAIN");
+		appender.setSaslConfig("DefaultSaslConfig.EXTERNAL");
+		appender.configureRabbitConnectionFactory(bean);
+		verify(bean, times(2)).setSaslConfig(captor.capture());
+		assertThat(captor.getValue())
+				.isInstanceOf(DefaultSaslConfig.class)
+				.hasFieldOrPropertyWithValue("mechanism", "EXTERNAL");
+		appender.setSaslConfig("JDKSaslConfig");
+		appender.configureRabbitConnectionFactory(bean);
+		verify(bean, times(3)).setSaslConfig(captor.capture());
+		assertThat(captor.getValue())
+				.isInstanceOf(JDKSaslConfig.class);
+		appender.setSaslConfig("CRDemoSaslConfig");
+		appender.configureRabbitConnectionFactory(bean);
+		verify(bean, times(4)).setSaslConfig(captor.capture());
+		assertThat(captor.getValue())
+				.isInstanceOf(CRDemoMechanism.CRDemoSaslConfig.class);
+		appender.setSaslConfig("junk");
+		assertThatThrownBy(() -> appender.configureRabbitConnectionFactory(bean))
+			.isInstanceOf(UncategorizedAmqpException.class)
+			.hasCauseInstanceOf(IllegalStateException.class)
+			.withFailMessage("Unrecognized SaslConfig: junk");
+	}
+
 
 	private void verifyDefaultHostProperties(RabbitConnectionFactoryBean bean) {
 		verify(bean, never()).setHost("localhost");

@@ -1,11 +1,11 @@
 /*
- * Copyright 2014-2018 the original author or authors.
+ * Copyright 2014-2019 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -25,7 +25,7 @@ import org.apache.commons.logging.LogFactory;
 import org.springframework.amqp.AmqpRejectAndDontRequeueException;
 import org.springframework.amqp.ImmediateAcknowledgeAmqpException;
 import org.springframework.amqp.core.Message;
-import org.springframework.amqp.rabbit.listener.exception.ListenerExecutionFailedException;
+import org.springframework.amqp.rabbit.support.ListenerExecutionFailedException;
 import org.springframework.amqp.support.converter.MessageConversionException;
 import org.springframework.messaging.MessagingException;
 import org.springframework.messaging.handler.invocation.MethodArgumentResolutionException;
@@ -60,6 +60,8 @@ public class ConditionalRejectingErrorHandler implements ErrorHandler {
 
 	private boolean discardFatalsWithXDeath = true;
 
+	private boolean rejectManual = true;
+
 	/**
 	 * Create a handler with the {@link ConditionalRejectingErrorHandler.DefaultExceptionStrategy}.
 	 */
@@ -87,6 +89,15 @@ public class ConditionalRejectingErrorHandler implements ErrorHandler {
 		this.discardFatalsWithXDeath = discardFatalsWithXDeath;
 	}
 
+	/**
+	 * Set to false to NOT reject a fatal message when MANUAL ack mode is being used.
+	 * @param rejectManual false to leave the message in an unack'd state.
+	 * @since 2.1.9
+	 */
+	public void setRejectManual(boolean rejectManual) {
+		this.rejectManual = rejectManual;
+	}
+
 	@Override
 	public void handleError(Throwable t) {
 		log(t);
@@ -102,7 +113,8 @@ public class ConditionalRejectingErrorHandler implements ErrorHandler {
 					}
 				}
 			}
-			throw new AmqpRejectAndDontRequeueException("Error Handler converted exception to fatal", t);
+			throw new AmqpRejectAndDontRequeueException("Error Handler converted exception to fatal", this.rejectManual,
+					t);
 		}
 	}
 

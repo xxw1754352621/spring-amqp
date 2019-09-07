@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<configuration debug="true">
+<configuration debug="false">
 
 	<appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
 		<encoder>
@@ -61,6 +61,84 @@
 		<senderPoolSize>1</senderPoolSize>
 	</appender>
 
+	<appender name="AMQPWithMdc" class="org.springframework.amqp.rabbit.logback.AmqpAppender">
+		<layout>
+			<pattern>%m</pattern>
+		</layout>
+		<addresses>localhost:5672</addresses>
+		<abbreviation>36</abbreviation>
+		<includeCallerData>true</includeCallerData>
+		<applicationId>AmqpAppenderTest</applicationId>
+		<routingKeyPattern>%property{applicationId}.%c.%p</routingKeyPattern>
+		<generateId>true</generateId>
+		<charset>UTF-8</charset>
+		<durable>false</durable>
+		<deliveryMode>NON_PERSISTENT</deliveryMode>
+		<declareExchange>false</declareExchange>
+		<addMdcAsHeaders>true</addMdcAsHeaders>
+	</appender>
+
+	<appender name="AMQPWithoutMdc" class="org.springframework.amqp.rabbit.logback.AmqpAppender">
+		<layout>
+			<pattern>%m</pattern>
+		</layout>
+		<addresses>localhost:5672</addresses>
+		<abbreviation>36</abbreviation>
+		<includeCallerData>true</includeCallerData>
+		<applicationId>AmqpAppenderTest</applicationId>
+		<routingKeyPattern>%property{applicationId}.%c.%p</routingKeyPattern>
+		<generateId>true</generateId>
+		<charset>UTF-8</charset>
+		<durable>false</durable>
+		<deliveryMode>NON_PERSISTENT</deliveryMode>
+		<declareExchange>false</declareExchange>
+		<addMdcAsHeaders>false</addMdcAsHeaders>
+	</appender>
+
+	<appender name="sasl1" class="org.springframework.amqp.rabbit.logback.AmqpAppender">
+		<layout>
+			<pattern>%m</pattern>
+		</layout>
+		<addresses>localhost:5672</addresses>
+		<applicationId>AmqpAppenderTest</applicationId>
+		<generateId>true</generateId>
+		<useSsl>true</useSsl>
+		<saslConfig>DefaultSaslConfig.PLAIN</saslConfig>
+	</appender>
+
+	<appender name="sasl2" class="org.springframework.amqp.rabbit.logback.AmqpAppender">
+		<layout>
+			<pattern>%m</pattern>
+		</layout>
+		<addresses>localhost:5672</addresses>
+		<applicationId>AmqpAppenderTest</applicationId>
+		<generateId>true</generateId>
+		<useSsl>true</useSsl>
+		<saslConfig>DefaultSaslConfig.EXTERNAL</saslConfig>
+	</appender>
+
+	<appender name="sasl3" class="org.springframework.amqp.rabbit.logback.AmqpAppender">
+		<layout>
+			<pattern>%m</pattern>
+		</layout>
+		<addresses>localhost:5672</addresses>
+		<applicationId>AmqpAppenderTest</applicationId>
+		<generateId>true</generateId>
+		<useSsl>true</useSsl>
+		<saslConfig>JDKSaslConfig</saslConfig>
+	</appender>
+
+	<appender name="sasl4" class="org.springframework.amqp.rabbit.logback.AmqpAppender">
+		<layout>
+			<pattern>%m</pattern>
+		</layout>
+		<addresses>localhost:5672</addresses>
+		<applicationId>AmqpAppenderTest</applicationId>
+		<generateId>true</generateId>
+		<useSsl>true</useSsl>
+		<saslConfig>CRDemoSaslConfig</saslConfig>
+	</appender>
+
 	<logger name="org.springframework.amqp.rabbit.logback" level="DEBUG" additivity="false">
 		<appender-ref ref="AMQP"/>
 	</logger>
@@ -71,6 +149,21 @@
 
 	<logger name="customQueue" level="DEBUG" additivity="false">
 		<appender-ref ref="AMQPWithCustomQueue"/>
+	</logger>
+
+	<logger name="withMdc" level="DEBUG" additivity="false">
+		<appender-ref ref="AMQPWithMdc"/>
+	</logger>
+
+	<logger name="withoutMdc" level="DEBUG" additivity="false">
+		<appender-ref ref="AMQPWithoutMdc"/>
+	</logger>
+
+	<logger name="sasl" level="DEBUG" additivity="false">
+		<appender-ref ref="sasl1"/>
+		<appender-ref ref="sasl2"/>
+		<appender-ref ref="sasl3"/>
+		<appender-ref ref="sasl4"/>
 	</logger>
 
 	<root level="INFO">

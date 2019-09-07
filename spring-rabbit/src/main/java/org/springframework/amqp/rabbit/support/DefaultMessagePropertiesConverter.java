@@ -1,11 +1,11 @@
 /*
- * Copyright 2002-2018 the original author or authors.
+ * Copyright 2002-2019 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -184,7 +184,7 @@ public class DefaultMessagePropertiesConverter implements MessagePropertiesConve
 	private Object convertHeaderValueIfNecessary(@Nullable Object valueArg) {
 		Object value = valueArg;
 		boolean valid = (value instanceof String) || (value instanceof byte[]) // NOSONAR boolean complexity
-				|| (value instanceof Boolean)
+				|| (value instanceof Boolean) || (value instanceof Class)
 				|| (value instanceof LongString) || (value instanceof Integer) || (value instanceof Long)
 				|| (value instanceof Float) || (value instanceof Double) || (value instanceof BigDecimal)
 				|| (value instanceof Short) || (value instanceof Byte) || (value instanceof Date)
@@ -215,6 +215,9 @@ public class DefaultMessagePropertiesConverter implements MessagePropertiesConve
 				writableMap.put(entry.getKey(), this.convertHeaderValueIfNecessary(entry.getValue()));
 			}
 			value = writableMap;
+		}
+		else if (value instanceof Class) {
+			value = ((Class<?>) value).getName();
 		}
 		return value;
 	}

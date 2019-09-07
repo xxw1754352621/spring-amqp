@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,11 +16,8 @@
 
 package org.springframework.amqp.rabbit.core;
 
-import static org.hamcrest.Matchers.containsString;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertThat;
-import static org.junit.Assert.fail;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.fail;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyMap;
@@ -28,6 +25,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.willAnswer;
 import static org.mockito.BDDMockito.willReturn;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -44,7 +42,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 import org.springframework.amqp.core.AmqpAdmin;
 import org.springframework.amqp.core.Binding;
@@ -99,7 +97,7 @@ public class RabbitAdminDeclarationTests {
 		context.refresh();
 		admin.setApplicationContext(context);
 		admin.afterPropertiesSet();
-		assertNotNull(listener.get());
+		assertThat(listener.get()).isNotNull();
 		listener.get().onCreate(conn);
 
 		verify(channel).queueDeclare("foo", true, false, false, new HashMap<>());
@@ -145,7 +143,7 @@ public class RabbitAdminDeclarationTests {
 		ccf.createConnection().close();
 		ccf.destroy();
 
-		assertEquals("Admin should not have created a channel", 0,  mockChannels.size());
+		assertThat(mockChannels.size()).as("Admin should not have created a channel").isEqualTo(0);
 	}
 
 	@Test
@@ -176,7 +174,7 @@ public class RabbitAdminDeclarationTests {
 		context.refresh();
 		admin.setApplicationContext(context);
 		admin.afterPropertiesSet();
-		assertNotNull(listener.get());
+		assertThat(listener.get()).isNotNull();
 		listener.get().onCreate(conn);
 
 		verify(channel).queueDeclare("foo", true, false, false, new HashMap<>());
@@ -213,7 +211,7 @@ public class RabbitAdminDeclarationTests {
 		context.refresh();
 		admin.setApplicationContext(context);
 		admin.afterPropertiesSet();
-		assertNotNull(listener.get());
+		assertThat(listener.get()).isNotNull();
 		listener.get().onCreate(conn);
 
 		verify(channel, never()).queueDeclare(eq("foo"), anyBoolean(), anyBoolean(), anyBoolean(), any(Map.class));
@@ -250,7 +248,7 @@ public class RabbitAdminDeclarationTests {
 		context.refresh();
 		admin.setApplicationContext(context);
 		admin.afterPropertiesSet();
-		assertNotNull(listener.get());
+		assertThat(listener.get()).isNotNull();
 		listener.get().onCreate(conn);
 
 		verify(channel, never()).queueDeclare(eq("foo"), anyBoolean(), anyBoolean(), anyBoolean(), any(Map.class));
@@ -264,16 +262,31 @@ public class RabbitAdminDeclarationTests {
 		AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext(Config.class);
 		Config.listener1.onCreate(Config.conn1);
 		verify(Config.channel1).queueDeclare("foo", true, false, false, new HashMap<>());
+		verify(Config.channel1, never()).queueDeclare("baz", true, false, false, new HashMap<>());
+		verify(Config.channel1).queueDeclare("qux", true, false, false, new HashMap<>());
 		verify(Config.channel1).exchangeDeclare("bar", "direct", true, false, true, new HashMap<String, Object>());
 		verify(Config.channel1).queueBind("foo", "bar", "foo", null);
 
 		Config.listener2.onCreate(Config.conn2);
 		verify(Config.channel2, never())
 				.queueDeclare(eq("foo"), anyBoolean(), anyBoolean(), anyBoolean(), isNull());
+		verify(Config.channel1, never()).queueDeclare("baz", true, false, false, new HashMap<>());
+		verify(Config.channel2).queueDeclare("qux", true, false, false, new HashMap<>());
 		verify(Config.channel2, never())
 				.exchangeDeclare(eq("bar"), eq("direct"), anyBoolean(), anyBoolean(),
 								anyBoolean(), anyMap());
 		verify(Config.channel2, never()).queueBind(eq("foo"), eq("bar"), eq("foo"), anyMap());
+
+		Config.listener3.onCreate(Config.conn3);
+		verify(Config.channel3, never())
+				.queueDeclare(eq("foo"), anyBoolean(), anyBoolean(), anyBoolean(), isNull());
+		verify(Config.channel3).queueDeclare("baz", true, false, false, new HashMap<>());
+		verify(Config.channel3, never()).queueDeclare("qux", true, false, false, new HashMap<>());
+		verify(Config.channel3, never())
+				.exchangeDeclare(eq("bar"), eq("direct"), anyBoolean(), anyBoolean(),
+								anyBoolean(), anyMap());
+		verify(Config.channel3, never()).queueBind(eq("foo"), eq("bar"), eq("foo"), anyMap());
+
 		context.close();
 	}
 
@@ -284,29 +297,29 @@ public class RabbitAdminDeclarationTests {
 		RabbitAdmin admin1 = new RabbitAdmin(cf);
 		RabbitAdmin admin2 = new RabbitAdmin(cf);
 		queue.setAdminsThatShouldDeclare(admin1, admin2);
-		assertEquals(2, queue.getDeclaringAdmins().size());
+		assertThat(queue.getDeclaringAdmins()).hasSize(2);
 		queue.setAdminsThatShouldDeclare(admin1);
-		assertEquals(1, queue.getDeclaringAdmins().size());
+		assertThat(queue.getDeclaringAdmins()).hasSize(1);
 		queue.setAdminsThatShouldDeclare(new Object[] {null});
-		assertEquals(0, queue.getDeclaringAdmins().size());
+		assertThat(queue.getDeclaringAdmins()).hasSize(0);
 		queue.setAdminsThatShouldDeclare(admin1, admin2);
-		assertEquals(2, queue.getDeclaringAdmins().size());
+		assertThat(queue.getDeclaringAdmins()).hasSize(2);
 		queue.setAdminsThatShouldDeclare();
-		assertEquals(0, queue.getDeclaringAdmins().size());
+		assertThat(queue.getDeclaringAdmins()).hasSize(0);
 		queue.setAdminsThatShouldDeclare(admin1, admin2);
-		assertEquals(2, queue.getDeclaringAdmins().size());
+		assertThat(queue.getDeclaringAdmins()).hasSize(2);
 		queue.setAdminsThatShouldDeclare((AmqpAdmin) null);
-		assertEquals(0, queue.getDeclaringAdmins().size());
+		assertThat(queue.getDeclaringAdmins()).hasSize(0);
 		queue.setAdminsThatShouldDeclare(admin1, admin2);
-		assertEquals(2, queue.getDeclaringAdmins().size());
+		assertThat(queue.getDeclaringAdmins()).hasSize(2);
 		queue.setAdminsThatShouldDeclare((Object[]) null);
-		assertEquals(0, queue.getDeclaringAdmins().size());
+		assertThat(queue.getDeclaringAdmins()).hasSize(0);
 		try {
 			queue.setAdminsThatShouldDeclare(null, admin1);
 			fail("Expected Exception");
 		}
 		catch (IllegalArgumentException e) {
-			assertThat(e.getMessage(), containsString("'admins' cannot contain null elements"));
+			assertThat(e.getMessage()).contains("'admins' cannot contain null elements");
 		}
 	}
 
@@ -337,21 +350,28 @@ public class RabbitAdminDeclarationTests {
 
 		private static Connection conn2 = mock(Connection.class);
 
+		private static Connection conn3 = mock(Connection.class);
+
 		private static Channel channel1 = mock(Channel.class);
 
 		private static Channel channel2 = mock(Channel.class);
 
+		private static Channel channel3 = mock(Channel.class);
+
 		private static ConnectionListener listener1;
 
 		private static ConnectionListener listener2;
+
+		private static ConnectionListener listener3;
 
 		@Bean
 		public ConnectionFactory cf1() throws IOException {
 			ConnectionFactory connectionFactory = mock(ConnectionFactory.class);
 			when(connectionFactory.createConnection()).thenReturn(conn1);
 			when(conn1.createChannel(false)).thenReturn(channel1);
-			when(channel1.queueDeclare("foo", true, false, false, new HashMap<>()))
-					.thenReturn(new AMQImpl.Queue.DeclareOk("foo", 0, 0));
+			willAnswer(inv -> {
+				return new AMQImpl.Queue.DeclareOk(inv.getArgument(0), 0, 0);
+			}).given(channel1).queueDeclare(anyString(), anyBoolean(), anyBoolean(), anyBoolean(), any());
 			doAnswer(invocation -> {
 				listener1 = invocation.getArgument(0);
 				return null;
@@ -364,8 +384,9 @@ public class RabbitAdminDeclarationTests {
 			ConnectionFactory connectionFactory = mock(ConnectionFactory.class);
 			when(connectionFactory.createConnection()).thenReturn(conn2);
 			when(conn2.createChannel(false)).thenReturn(channel2);
-			when(channel2.queueDeclare("foo", true, false, false, null))
-					.thenReturn(new AMQImpl.Queue.DeclareOk("foo", 0, 0));
+			willAnswer(inv -> {
+				return new AMQImpl.Queue.DeclareOk(inv.getArgument(0), 0, 0);
+			}).given(channel2).queueDeclare(anyString(), anyBoolean(), anyBoolean(), anyBoolean(), any());
 			doAnswer(invocation -> {
 				listener2 = invocation.getArgument(0);
 				return null;
@@ -374,24 +395,56 @@ public class RabbitAdminDeclarationTests {
 		}
 
 		@Bean
+		public ConnectionFactory cf3() throws IOException {
+			ConnectionFactory connectionFactory = mock(ConnectionFactory.class);
+			when(connectionFactory.createConnection()).thenReturn(conn3);
+			when(conn3.createChannel(false)).thenReturn(channel3);
+			willAnswer(inv -> {
+				return new AMQImpl.Queue.DeclareOk(inv.getArgument(0), 0, 0);
+			}).given(channel3).queueDeclare(anyString(), anyBoolean(), anyBoolean(), anyBoolean(), any());
+			doAnswer(invocation -> {
+				listener3 = invocation.getArgument(0);
+				return null;
+			}).when(connectionFactory).addConnectionListener(any(ConnectionListener.class));
+			return connectionFactory;
+		}
+
+		@Bean
 		public RabbitAdmin admin1() throws IOException {
 			RabbitAdmin rabbitAdmin = new RabbitAdmin(cf1());
-			rabbitAdmin.afterPropertiesSet();
 			return rabbitAdmin;
 		}
 
 		@Bean
 		public RabbitAdmin admin2() throws IOException {
 			RabbitAdmin rabbitAdmin = new RabbitAdmin(cf2());
-			rabbitAdmin.afterPropertiesSet();
 			return rabbitAdmin;
 		}
 
 		@Bean
-		public Queue queue() throws IOException {
+		public RabbitAdmin admin3() throws IOException {
+			RabbitAdmin rabbitAdmin = new RabbitAdmin(cf3());
+			rabbitAdmin.setExplicitDeclarationsOnly(true);
+			return rabbitAdmin;
+		}
+
+		@Bean
+		public Queue queueFoo() throws IOException {
 			Queue queue = new Queue("foo");
 			queue.setAdminsThatShouldDeclare(admin1());
 			return queue;
+		}
+
+		@Bean
+		public Queue queueBaz() throws IOException {
+			Queue queue = new Queue("baz");
+			queue.setAdminsThatShouldDeclare(admin3());
+			return queue;
+		}
+
+		@Bean
+		public Queue queueQux() {
+			return new Queue("qux");
 		}
 
 		@Bean

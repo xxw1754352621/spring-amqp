@@ -1,11 +1,11 @@
 /*
- * Copyright 2014-2016 the original author or authors.
+ * Copyright 2014-2019 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,7 +16,7 @@
 
 package org.springframework.amqp.rabbit.config;
 
-import static org.junit.Assert.assertNotNull;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -57,8 +57,8 @@ public class RabbitListenerContainerTestFactory implements RabbitListenerContain
 			((AbstractRabbitListenerEndpoint) endpoint).setId("endpoint#" + counter.getAndIncrement());
 		}
 		String id = endpoint.getId();
-		assertNotNull(this.getClass().getSimpleName() + " does not support " + endpoint.getClass().getSimpleName()
-				+ " without an id", id);
+		assertThat(id).as(this.getClass().getSimpleName() + " does not support " + endpoint.getClass().getSimpleName()
+				+ " without an id").isNotNull();
 		this.listenerContainers.put(id, container);
 		return container;
 	}

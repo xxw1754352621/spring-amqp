@@ -1,11 +1,11 @@
 /*
- * Copyright 2002-2018 the original author or authors.
+ * Copyright 2002-2019 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,12 +16,8 @@
 
 package org.springframework.amqp.rabbit.listener;
 
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.instanceOf;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertThat;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.fail;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -29,20 +25,18 @@ import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
-import org.apache.logging.log4j.Level;
-import org.junit.After;
-import org.junit.Rule;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 import org.springframework.amqp.core.AcknowledgeMode;
 import org.springframework.amqp.core.Queue;
 import org.springframework.amqp.rabbit.connection.CachingConnectionFactory;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
-import org.springframework.amqp.rabbit.junit.BrokerRunning;
 import org.springframework.amqp.rabbit.junit.BrokerTestUtils;
+import org.springframework.amqp.rabbit.junit.LogLevels;
+import org.springframework.amqp.rabbit.junit.RabbitAvailable;
 import org.springframework.amqp.rabbit.listener.exception.FatalListenerStartupException;
+import org.springframework.amqp.rabbit.support.ActiveObjectCounter;
 import org.springframework.amqp.rabbit.support.DefaultMessagePropertiesConverter;
-import org.springframework.amqp.rabbit.test.LogLevelAdjuster;
 
 /**
  * @author Dave Syer
@@ -51,24 +45,20 @@ import org.springframework.amqp.rabbit.test.LogLevelAdjuster;
  * @since 1.0
  *
  */
+@RabbitAvailable(queues = { BlockingQueueConsumerIntegrationTests.QUEUE1_NAME,
+		BlockingQueueConsumerIntegrationTests.QUEUE2_NAME })
+@LogLevels(classes = {RabbitTemplate.class,
+			SimpleMessageListenerContainer.class, BlockingQueueConsumer.class,
+			BlockingQueueConsumerIntegrationTests.class }, level = "INFO")
 public class BlockingQueueConsumerIntegrationTests {
 
-	private static Queue queue1 = new Queue("test.queue1");
+	public static final String QUEUE1_NAME = "test.queue1.BlockingQueueConsumerIntegrationTests";
 
-	private static Queue queue2 = new Queue("test.queue2");
+	public static final String QUEUE2_NAME = "test.queue2.BlockingQueueConsumerIntegrationTests";
 
-	@Rule
-	public BrokerRunning brokerIsRunning = BrokerRunning.isRunningWithEmptyQueues(queue1.getName(), queue2.getName());
+	private static Queue queue1 = new Queue(QUEUE1_NAME);
 
-	@Rule
-	public LogLevelAdjuster logLevels = new LogLevelAdjuster(Level.INFO, RabbitTemplate.class,
-			SimpleMessageListenerContainer.class, BlockingQueueConsumer.class,
-			BlockingQueueConsumerIntegrationTests.class);
-
-	@After
-	public void tearDown() {
-		this.brokerIsRunning.removeTestQueues();
-	}
+	private static Queue queue2 = new Queue(QUEUE2_NAME);
 
 	@Test
 	public void testTransactionalLowLevel() throws Exception {
@@ -93,11 +83,11 @@ public class BlockingQueueConsumerIntegrationTests {
 			}
 		});
 		blockingQueueConsumer.start();
-		assertTrue(latch.await(10, TimeUnit.SECONDS));
-		assertThat(events.get(0).getConsumerTag(), equalTo(consumerTagPrefix + "#" + queue1.getName()));
-		assertThat(events.get(1).getConsumerTag(), equalTo(consumerTagPrefix + "#" + queue2.getName()));
+		assertThat(latch.await(10, TimeUnit.SECONDS)).isTrue();
+		assertThat(events.get(0).getConsumerTag()).isEqualTo(consumerTagPrefix + "#" + queue1.getName());
+		assertThat(events.get(1).getConsumerTag()).isEqualTo(consumerTagPrefix + "#" + queue2.getName());
 		blockingQueueConsumer.stop();
-		assertNull(template.receiveAndConvert(queue1.getName()));
+		assertThat(template.receiveAndConvert(queue1.getName())).isNull();
 		connectionFactory.destroy();
 	}
 
@@ -113,7 +103,7 @@ public class BlockingQueueConsumerIntegrationTests {
 			fail("expected exception");
 		}
 		catch (FatalListenerStartupException e) {
-			assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
+			assertThat(e.getCause()).isInstanceOf(IllegalArgumentException.class);
 		}
 		connectionFactory.destroy();
 	}

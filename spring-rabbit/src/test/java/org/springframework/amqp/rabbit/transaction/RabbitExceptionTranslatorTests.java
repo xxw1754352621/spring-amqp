@@ -1,11 +1,11 @@
 /*
- * Copyright 2013-2016 the original author or authors.
+ * Copyright 2013-2019 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,14 +16,13 @@
 
 package org.springframework.amqp.rabbit.transaction;
 
-import static org.hamcrest.CoreMatchers.instanceOf;
-import static org.junit.Assert.assertThat;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.net.ConnectException;
 
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 import org.springframework.amqp.AmqpAuthenticationException;
 import org.springframework.amqp.AmqpConnectException;
@@ -44,27 +43,21 @@ public class RabbitExceptionTranslatorTests {
 	@Test
 	public void testConvertRabbitAccessException() {
 
-		assertThat(RabbitExceptionTranslator.convertRabbitAccessException(new PossibleAuthenticationFailureException(new RuntimeException())),
-				instanceOf(AmqpAuthenticationException.class));
+		assertThat(RabbitExceptionTranslator.convertRabbitAccessException(new PossibleAuthenticationFailureException(new RuntimeException()))).isInstanceOf(AmqpAuthenticationException.class);
 
-		assertThat(RabbitExceptionTranslator.convertRabbitAccessException(new AmqpException("")),
-				instanceOf(AmqpException.class));
+		assertThat(RabbitExceptionTranslator.convertRabbitAccessException(new AmqpException(""))).isInstanceOf(AmqpException.class);
 
-		assertThat(RabbitExceptionTranslator.convertRabbitAccessException(new ShutdownSignalException(false, false, null, null)),
-				instanceOf(AmqpConnectException.class));
+		assertThat(RabbitExceptionTranslator.convertRabbitAccessException(new ShutdownSignalException(false, false, null, null))).isInstanceOf(AmqpConnectException.class);
 
-		assertThat(RabbitExceptionTranslator.convertRabbitAccessException(new ConnectException()),
-				instanceOf(AmqpConnectException.class));
+		assertThat(RabbitExceptionTranslator.convertRabbitAccessException(new ConnectException())).isInstanceOf(AmqpConnectException.class);
 
-		assertThat(RabbitExceptionTranslator.convertRabbitAccessException(new IOException()),
-				instanceOf(AmqpIOException.class));
+		assertThat(RabbitExceptionTranslator.convertRabbitAccessException(new IOException())).isInstanceOf(AmqpIOException.class);
 
-		assertThat(RabbitExceptionTranslator.convertRabbitAccessException(new UnsupportedEncodingException()),
-				instanceOf(AmqpUnsupportedEncodingException.class));
+		assertThat(RabbitExceptionTranslator.convertRabbitAccessException(new UnsupportedEncodingException())).isInstanceOf(AmqpUnsupportedEncodingException.class);
 
 		assertThat(RabbitExceptionTranslator.convertRabbitAccessException(new Exception() {
-				private static final long serialVersionUID = 1L;
-			}), instanceOf(UncategorizedAmqpException.class));
+			private static final long serialVersionUID = 1L;
+		})).isInstanceOf(UncategorizedAmqpException.class);
 
 	}
 

@@ -1,11 +1,11 @@
 /*
- * Copyright 2018 the original author or authors.
+ * Copyright 2018-2019 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -24,16 +24,14 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.runner.RunWith;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 
 import org.springframework.amqp.core.Message;
 import org.springframework.amqp.core.MessageProperties;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.ParameterizedTypeReference;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.junit4.SpringRunner;
+import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
 
 import com.fasterxml.jackson.databind.ser.BeanSerializerFactory;
 import com.fasterxml.jackson.dataformat.xml.XmlMapper;
@@ -44,8 +42,7 @@ import com.fasterxml.jackson.dataformat.xml.XmlMapper;
  *
  * @since 2.1
  */
-@ContextConfiguration
-@RunWith(SpringRunner.class)
+@SpringJUnitConfig
 public class Jackson2XmlMessageConverterTests {
 
 	public static final String TRUSTED_PACKAGE = Jackson2XmlMessageConverterTests.class.getPackage().getName();
@@ -57,7 +54,7 @@ public class Jackson2XmlMessageConverterTests {
 	@Autowired
 	private Jackson2XmlMessageConverter xmlConverterWithDefaultType;
 
-	@Before
+	@BeforeEach
 	public void before() {
 		converter = new Jackson2XmlMessageConverter(TRUSTED_PACKAGE);
 		trade = new SimpleTrade();
@@ -187,8 +184,9 @@ public class Jackson2XmlMessageConverterTests {
 		byte[] bytes = "<root><name>foo</name><root/>".getBytes();
 		MessageProperties messageProperties = new MessageProperties();
 		Message message = new Message(bytes, messageProperties);
-		Object foo = xmlConverterWithDefaultType.fromMessage(message);
-		assertThat(new String(bytes)).isEqualTo(new String((byte[]) foo));
+		this.xmlConverterWithDefaultType.setAssumeSupportedContentType(false);
+		Object foo = this.xmlConverterWithDefaultType.fromMessage(message);
+		assertThat(foo).isEqualTo(bytes);
 	}
 
 	@Test

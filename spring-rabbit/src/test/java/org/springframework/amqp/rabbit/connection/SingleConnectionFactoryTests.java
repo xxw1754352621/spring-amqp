@@ -1,11 +1,11 @@
 /*
- * Copyright 2002-2017 the original author or authors.
+ * Copyright 2002-2019 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,7 +16,7 @@
 
 package org.springframework.amqp.rabbit.connection;
 
-import static org.junit.Assert.assertEquals;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -30,7 +30,7 @@ import java.util.Collections;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 import com.rabbitmq.client.Channel;
 import com.rabbitmq.client.ConnectionFactory;
@@ -66,7 +66,7 @@ public class SingleConnectionFactoryTests extends AbstractConnectionFactoryTests
 
 		Connection con = connectionFactory.createConnection();
 		Channel channel = con.createChannel(false);
-		assertEquals(1, called.get());
+		assertThat(called.get()).isEqualTo(1);
 		channel.close();
 
 		con.close();
@@ -74,7 +74,7 @@ public class SingleConnectionFactoryTests extends AbstractConnectionFactoryTests
 
 		connectionFactory.createConnection();
 		con.createChannel(false);
-		assertEquals(2, called.get());
+		assertThat(called.get()).isEqualTo(2);
 
 		connectionFactory.destroy();
 		verify(mockConnection, atLeastOnce()).close(anyInt());

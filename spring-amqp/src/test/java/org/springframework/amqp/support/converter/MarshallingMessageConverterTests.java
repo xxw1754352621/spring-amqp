@@ -1,11 +1,11 @@
 /*
- * Copyright 2002-2012 the original author or authors.
+ * Copyright 2002-2019 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,7 +16,7 @@
 
 package org.springframework.amqp.support.converter;
 
-import static org.junit.Assert.assertEquals;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.IOException;
 
@@ -25,7 +25,7 @@ import javax.xml.transform.Source;
 import javax.xml.transform.stream.StreamResult;
 import javax.xml.transform.stream.StreamSource;
 
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 import org.springframework.amqp.core.Message;
 import org.springframework.amqp.core.MessageProperties;
@@ -45,7 +45,7 @@ public class MarshallingMessageConverterTests {
 		converter.afterPropertiesSet();
 		Message message = converter.toMessage("marshal test", new MessageProperties());
 		String response = new String(message.getBody(), "UTF-8");
-		assertEquals("MARSHAL TEST", response);
+		assertThat(response).isEqualTo("MARSHAL TEST");
 	}
 
 	@Test
@@ -57,7 +57,7 @@ public class MarshallingMessageConverterTests {
 
 		Message message = converter.toMessage("marshal test", new MessageProperties());
 
-		assertEquals("application/xml", message.getMessageProperties().getContentType());
+		assertThat(message.getMessageProperties().getContentType()).isEqualTo("application/xml");
 	}
 
 	@Test
@@ -69,7 +69,7 @@ public class MarshallingMessageConverterTests {
 
 		Message message = converter.toMessage("marshal test", new MessageProperties());
 
-		assertEquals(defaultContentType, message.getMessageProperties().getContentType());
+		assertThat(message.getMessageProperties().getContentType()).isEqualTo(defaultContentType);
 	}
 
 	@Test
@@ -79,7 +79,7 @@ public class MarshallingMessageConverterTests {
 		converter.afterPropertiesSet();
 		Message message = new Message("UNMARSHAL TEST".getBytes(), new MessageProperties());
 		Object result = converter.fromMessage(message);
-		assertEquals("unmarshal test", result);
+		assertThat(result).isEqualTo("unmarshal test");
 	}
 
 

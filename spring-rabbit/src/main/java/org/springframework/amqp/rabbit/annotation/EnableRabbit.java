@@ -1,11 +1,11 @@
 /*
- * Copyright 2014 the original author or authors.
+ * Copyright 2014-2019 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -47,7 +47,8 @@ import org.springframework.context.annotation.Import;
  *
  * The {@code RabbitListenerContainerFactory} is responsible to create the listener container
  * responsible for a particular endpoint. Typical implementations, as the
- * {@link org.springframework.amqp.rabbit.config.SimpleRabbitListenerContainerFactory SimpleRabbitListenerContainerFactory}
+ * {@link org.springframework.amqp.rabbit.config.SimpleRabbitListenerContainerFactory
+ * SimpleRabbitListenerContainerFactory}
  * used in the sample above, provides the necessary configuration options that are supported by
  * the underlying {@link org.springframework.amqp.rabbit.listener.MessageListenerContainer MessageListenerContainer}.
  *
@@ -111,9 +112,11 @@ import org.springframework.context.annotation.Import;
  *     // process incoming message
  * }</pre>
  *
- * These features are abstracted by the {@link org.springframework.messaging.handler.annotation.support.MessageHandlerMethodFactory
+ * These features are abstracted by the
+ * {@link org.springframework.messaging.handler.annotation.support.MessageHandlerMethodFactory
  * MessageHandlerMethodFactory} that is responsible to build the necessary invoker to process
- * the annotated method. By default, {@link org.springframework.messaging.handler.annotation.support.DefaultMessageHandlerMethodFactory
+ * the annotated method. By default,
+ * {@link org.springframework.messaging.handler.annotation.support.DefaultMessageHandlerMethodFactory
  * DefaultMessageHandlerMethodFactory} is used.
  *
  * <p>When more control is desired, a {@code @Configuration} class may implement
@@ -249,7 +252,10 @@ import org.springframework.context.annotation.Import;
  * definition registered in the context in case you use the XML configuration.
  *
  * @author Stephane Nicoll
+ * @author Artem Bilan
+ *
  * @since 1.4
+ *
  * @see RabbitListener
  * @see RabbitListenerAnnotationBeanPostProcessor
  * @see org.springframework.amqp.rabbit.listener.RabbitListenerEndpointRegistrar
@@ -258,6 +264,6 @@ import org.springframework.context.annotation.Import;
 @Target(ElementType.TYPE)
 @Retention(RetentionPolicy.RUNTIME)
 @Documented
-@Import(RabbitBootstrapConfiguration.class)
+@Import(RabbitListenerConfigurationSelector.class)
 public @interface EnableRabbit {
 }

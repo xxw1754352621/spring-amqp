@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,20 +16,19 @@
 
 package org.springframework.amqp.rabbit.core;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 
 import org.springframework.amqp.rabbit.connection.CachingConnectionFactory;
-import org.springframework.amqp.rabbit.junit.BrokerRunning;
+import org.springframework.amqp.rabbit.connection.CachingConnectionFactory.ConfirmType;
 import org.springframework.amqp.rabbit.junit.BrokerTestUtils;
+import org.springframework.amqp.rabbit.junit.RabbitAvailable;
 
 import com.rabbitmq.client.AMQP.BasicProperties;
 import com.rabbitmq.client.DefaultConsumer;
@@ -40,18 +39,16 @@ import com.rabbitmq.client.Envelope;
  * @since 1.6
  *
  */
+@RabbitAvailable(queues = RabbitTemplatePublisherCallbacksIntegrationTests2.ROUTE)
 public class RabbitTemplatePublisherCallbacksIntegrationTests2 {
 
-	private static final String ROUTE = "test.queue";
+	public static final String ROUTE = "test.queue.RabbitTemplatePublisherCallbacksIntegrationTests2";
 
 	private CachingConnectionFactory connectionFactoryWithConfirmsEnabled;
 
 	private RabbitTemplate templateWithConfirmsEnabled;
 
-	@Rule
-	public BrokerRunning brokerIsRunning = BrokerRunning.isRunningWithEmptyQueues(ROUTE);
-
-	@Before
+	@BeforeEach
 	public void create() {
 		connectionFactoryWithConfirmsEnabled = new CachingConnectionFactory();
 		connectionFactoryWithConfirmsEnabled.setHost("localhost");
@@ -59,16 +56,15 @@ public class RabbitTemplatePublisherCallbacksIntegrationTests2 {
 		// otherwise channels can be closed before confirms are received.
 		connectionFactoryWithConfirmsEnabled.setChannelCacheSize(100);
 		connectionFactoryWithConfirmsEnabled.setPort(BrokerTestUtils.getPort());
-		connectionFactoryWithConfirmsEnabled.setPublisherConfirms(true);
+		connectionFactoryWithConfirmsEnabled.setPublisherConfirmType(ConfirmType.CORRELATED);
 		templateWithConfirmsEnabled = new RabbitTemplate(connectionFactoryWithConfirmsEnabled);
 	}
 
-	@After
+	@AfterEach
 	public void cleanUp() {
 		if (connectionFactoryWithConfirmsEnabled != null) {
 			connectionFactoryWithConfirmsEnabled.destroy();
 		}
-		this.brokerIsRunning.removeTestQueues();
 	}
 
 	@Test
@@ -76,20 +72,22 @@ public class RabbitTemplatePublisherCallbacksIntegrationTests2 {
 		this.templateWithConfirmsEnabled.convertAndSend(ROUTE, "foo");
 		this.templateWithConfirmsEnabled.convertAndSend(ROUTE, "foo");
 		assertMessageCountEquals(2L);
-		assertEquals(Long.valueOf(1), this.templateWithConfirmsEnabled.execute(channel -> {
+		Long result = this.templateWithConfirmsEnabled.execute(channel -> {
 			final CountDownLatch latch = new CountDownLatch(2);
 			String consumerTag = channel.basicConsume(ROUTE, new DefaultConsumer(channel) {
+
 				@Override
-				public void handleDelivery(String consumerTag, Envelope envelope, BasicProperties properties,
-						byte[] body) {
+				public void handleDelivery(String ag, Envelope envelope, BasicProperties properties, byte[] body) {
 					latch.countDown();
 				}
+
 			});
 			long consumerCount = channel.consumerCount(ROUTE);
-			assertTrue(latch.await(10, TimeUnit.SECONDS));
+			assertThat(latch.await(10, TimeUnit.SECONDS)).isTrue();
 			channel.basicCancel(consumerTag);
 			return consumerCount;
-		}));
+		});
+		assertThat(result).isEqualTo(1L);
 		assertMessageCountEquals(0L);
 	}
 
@@ -100,7 +98,7 @@ public class RabbitTemplatePublisherCallbacksIntegrationTests2 {
 			Thread.sleep(100);
 			messageCount = determineMessageCount();
 		}
-		assertEquals(wanted, messageCount);
+		assertThat(messageCount).isEqualTo(wanted);
 	}
 
 	private Long determineMessageCount() {

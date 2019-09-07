@@ -1,11 +1,11 @@
 /*
- * Copyright 2002-2018 the original author or authors.
+ * Copyright 2002-2019 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,8 +16,8 @@
 
 package org.springframework.amqp.rabbit.listener;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
@@ -27,11 +27,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.aopalliance.aop.Advice;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-import org.apache.logging.log4j.Level;
-import org.junit.After;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.ExpectedException;
+import org.junit.jupiter.api.RepeatedTest;
+import org.junit.jupiter.api.Test;
 
 import org.springframework.amqp.core.AcknowledgeMode;
 import org.springframework.amqp.core.Queue;
@@ -40,18 +37,16 @@ import org.springframework.amqp.rabbit.config.StatefulRetryOperationsInterceptor
 import org.springframework.amqp.rabbit.config.StatelessRetryOperationsInterceptorFactoryBean;
 import org.springframework.amqp.rabbit.connection.CachingConnectionFactory;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
-import org.springframework.amqp.rabbit.junit.BrokerRunning;
 import org.springframework.amqp.rabbit.junit.BrokerTestUtils;
+import org.springframework.amqp.rabbit.junit.LogLevels;
+import org.springframework.amqp.rabbit.junit.RabbitAvailable;
 import org.springframework.amqp.rabbit.listener.adapter.MessageListenerAdapter;
-import org.springframework.amqp.rabbit.test.LogLevelAdjuster;
-import org.springframework.amqp.rabbit.test.RepeatProcessor;
 import org.springframework.amqp.support.converter.MessageConverter;
 import org.springframework.amqp.support.converter.SimpleMessageConverter;
 import org.springframework.amqp.utils.SerializationUtils;
 import org.springframework.beans.factory.DisposableBean;
 import org.springframework.retry.policy.MapRetryContextCache;
 import org.springframework.retry.support.RetryTemplate;
-import org.springframework.test.annotation.Repeat;
 
 /**
  * @author Dave Syer
@@ -62,28 +57,17 @@ import org.springframework.test.annotation.Repeat;
  * @since 1.0
  *
  */
+@RabbitAvailable(queues = MessageListenerContainerRetryIntegrationTests.TEST_QUEUE)
+@LogLevels(level = "ERROR", classes = {
+		RabbitTemplate.class, SimpleMessageListenerContainer.class, BlockingQueueConsumer.class,
+		StatefulRetryOperationsInterceptorFactoryBean.class, MessageListenerContainerRetryIntegrationTests.class })
 public class MessageListenerContainerRetryIntegrationTests {
+
+	public static final String TEST_QUEUE = "test.queue.MessageListenerContainerRetryIntegrationTests";
 
 	private static Log logger = LogFactory.getLog(MessageListenerContainerRetryIntegrationTests.class);
 
-	private static Queue queue = new Queue("test.queue");
-
-	@Rule
-	public BrokerRunning brokerIsRunning = BrokerRunning.isRunningWithEmptyQueues(queue.getName());
-
-	@Rule
-	public LogLevelAdjuster logLevels = new LogLevelAdjuster(Level.ERROR, RabbitTemplate.class,
-			SimpleMessageListenerContainer.class, BlockingQueueConsumer.class);
-
-	@Rule
-	public LogLevelAdjuster traceLevels = new LogLevelAdjuster(Level.ERROR,
-			StatefulRetryOperationsInterceptorFactoryBean.class, MessageListenerContainerRetryIntegrationTests.class);
-
-	@Rule
-	public ExpectedException exception = ExpectedException.none();
-
-	@Rule
-	public RepeatProcessor repeats = new RepeatProcessor();
+	private static Queue queue = new Queue(TEST_QUEUE);
 
 	private RetryTemplate retryTemplate;
 
@@ -97,19 +81,12 @@ public class MessageListenerContainerRetryIntegrationTests {
 		connectionFactory.setPort(BrokerTestUtils.getPort());
 		template.setConnectionFactory(connectionFactory);
 		if (messageConverter == null) {
-			SimpleMessageConverter messageConverter = new SimpleMessageConverter();
-			messageConverter.setCreateMessageIds(true);
-			this.messageConverter = messageConverter;
+			SimpleMessageConverter converter = new SimpleMessageConverter();
+			converter.setCreateMessageIds(true);
+			this.messageConverter = converter;
 		}
 		template.setMessageConverter(messageConverter);
 		return template;
-	}
-
-	@After
-	public void tearDown() {
-		if (this.repeats.isFinalizing()) {
-			this.brokerIsRunning.removeTestQueues();
-		}
 	}
 
 	@Test
@@ -135,27 +112,29 @@ public class MessageListenerContainerRetryIntegrationTests {
 	}
 
 	@Test
-	public void testStatefulRetryWithNoMessageIds() throws Exception {
+	public void testStatefulRetryWithNoMessageIds() {
 
 		int messageCount = 2;
 		int txSize = 1;
 		int failFrequency = 1;
 		int concurrentConsumers = 1;
-		SimpleMessageConverter messageConverter = new SimpleMessageConverter();
+		SimpleMessageConverter converter = new SimpleMessageConverter();
 		// There will be no key for these messages so they cannot be recovered...
-		messageConverter.setCreateMessageIds(false);
-		this.messageConverter = messageConverter;
+		converter.setCreateMessageIds(false);
+		this.messageConverter = converter;
 		// Beware of context cache busting if retry policy fails...
 		this.retryTemplate = new RetryTemplate();
 		this.retryTemplate.setRetryContextCache(new MapRetryContextCache(1));
 		// The container should have shutdown, so there are now no active consumers
-		exception.expectMessage("expected:<1> but was:<0>");
-		doTestStatefulRetry(messageCount, txSize, failFrequency, concurrentConsumers);
-
+		assertThatThrownBy(() -> doTestStatefulRetry(messageCount, txSize, failFrequency, concurrentConsumers))
+			.hasMessageContaining("Expecting:")
+			.hasMessageContaining(" <0>")
+			.hasMessageContaining("to be equal to")
+			.hasMessageContaining(" <1>")
+			.hasMessageContaining("but was not.");
 	}
 
-	@Test
-	@Repeat(10)
+	@RepeatedTest(10)
 	public void testStatefulRetryWithTxSizeAndIntermittentFailure() throws Exception {
 
 		int messageCount = 10;
@@ -223,7 +202,7 @@ public class MessageListenerContainerRetryIntegrationTests {
 		container.setMessageListener(new MessageListenerAdapter(listener));
 		container.setAcknowledgeMode(AcknowledgeMode.AUTO);
 		container.setChannelTransacted(true);
-		container.setTxSize(txSize);
+		container.setBatchSize(txSize);
 		container.setConcurrentConsumers(concurrentConsumers);
 
 		final CountDownLatch latch = new CountDownLatch(failedMessageCount);
@@ -257,21 +236,21 @@ public class MessageListenerContainerRetryIntegrationTests {
 			});
 			boolean waited = latch.await(timeout, TimeUnit.SECONDS);
 			logger.info("All messages recovered: " + waited);
-			assertEquals(concurrentConsumers, container.getActiveConsumerCount());
-			assertTrue("Timed out waiting for messages", waited);
+			assertThat(container.getActiveConsumerCount()).isEqualTo(concurrentConsumers);
+			assertThat(waited).as("Timed out waiting for messages").isTrue();
 
 			// Retried each failure 3 times (default retry policy)...
-			assertEquals(3 * failedMessageCount, listener.getCount());
+			assertThat(listener.getCount()).isEqualTo(3 * failedMessageCount);
 
 			// All failed messages recovered
-			assertEquals(null, template.receiveAndConvert(queue.getName()));
+			assertThat(template.receiveAndConvert(queue.getName())).isEqualTo(null);
 
 		}
 		finally {
 			container.shutdown();
 			((DisposableBean) template.getConnectionFactory()).destroy();
 
-			assertEquals(0, container.getActiveConsumerCount());
+			assertThat(container.getActiveConsumerCount()).isEqualTo(0);
 		}
 
 	}

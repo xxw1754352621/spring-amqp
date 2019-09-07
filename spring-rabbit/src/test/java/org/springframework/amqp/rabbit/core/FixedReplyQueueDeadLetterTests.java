@@ -1,11 +1,11 @@
 /*
- * Copyright 2014-2016 the original author or authors.
+ * Copyright 2014-2019 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,33 +16,42 @@
 
 package org.springframework.amqp.rabbit.core;
 
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertTrue;
+import static org.assertj.core.api.Assertions.assertThat;
 
+import java.net.MalformedURLException;
+import java.net.URISyntaxException;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.runner.RunWith;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
 
 import org.springframework.amqp.core.Binding;
 import org.springframework.amqp.core.BindingBuilder;
 import org.springframework.amqp.core.DirectExchange;
+import org.springframework.amqp.core.ExchangeBuilder;
 import org.springframework.amqp.core.Queue;
 import org.springframework.amqp.core.QueueBuilder;
+import org.springframework.amqp.core.QueueBuilder.MasterLocator;
+import org.springframework.amqp.core.QueueBuilder.Overflow;
 import org.springframework.amqp.rabbit.connection.CachingConnectionFactory;
 import org.springframework.amqp.rabbit.connection.ConnectionFactory;
-import org.springframework.amqp.rabbit.core.FixedReplyQueueDeadLetterTests.FixedReplyQueueDeadLetterConfig;
-import org.springframework.amqp.rabbit.junit.BrokerRunning;
+import org.springframework.amqp.rabbit.junit.BrokerRunningSupport;
+import org.springframework.amqp.rabbit.junit.RabbitAvailable;
+import org.springframework.amqp.rabbit.junit.RabbitAvailableCondition;
 import org.springframework.amqp.rabbit.listener.SimpleMessageListenerContainer;
 import org.springframework.amqp.rabbit.listener.adapter.MessageListenerAdapter;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.test.annotation.DirtiesContext;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
+import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
+
+import com.rabbitmq.http.client.Client;
+import com.rabbitmq.http.client.domain.ExchangeInfo;
+import com.rabbitmq.http.client.domain.QueueInfo;
 
 /**
  *
@@ -50,10 +59,12 @@ import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
  * @since 1.3.6
  */
 
-@ContextConfiguration(classes = FixedReplyQueueDeadLetterConfig.class)
-@RunWith(SpringJUnit4ClassRunner.class)
+@SpringJUnitConfig
 @DirtiesContext
+@RabbitAvailable(management = true)
 public class FixedReplyQueueDeadLetterTests {
+
+	private static BrokerRunningSupport brokerRunning;
 
 	@Autowired
 	private RabbitTemplate rabbitTemplate;
@@ -61,8 +72,15 @@ public class FixedReplyQueueDeadLetterTests {
 	@Autowired
 	private DeadListener deadListener;
 
-	@Rule
-	public BrokerRunning brokerRunning = BrokerRunning.isRunning();
+	@BeforeAll
+	static void setUp() {
+		brokerRunning = RabbitAvailableCondition.getBrokerRunning();
+	}
+
+	@AfterAll
+	static void tearDown() {
+		brokerRunning.deleteQueues("all.args.1", "all.args.2", "all.args.3");
+	}
 
 	/**
 	 * Sends a message to a service that upcases the String and returns as a reply
@@ -73,9 +91,81 @@ public class FixedReplyQueueDeadLetterTests {
 	 */
 	@Test
 	public void test() throws Exception {
-		assertNull(this.rabbitTemplate.convertSendAndReceive("foo"));
-		assertTrue(this.deadListener.latch.await(10, TimeUnit.SECONDS));
+		assertThat(this.rabbitTemplate.convertSendAndReceive("foo")).isNull();
+		assertThat(this.deadListener.latch.await(10, TimeUnit.SECONDS)).isTrue();
 	}
+
+	@Test
+	public void testQueueArgs1() throws MalformedURLException, URISyntaxException, InterruptedException {
+		Client client = new Client(brokerRunning.getAdminUri(), brokerRunning.getAdminUser(),
+				brokerRunning.getAdminPassword());
+		QueueInfo queue = client.getQueue("/", "all.args.1");
+		int n = 0;
+		while (n++ < 100 && queue == null) {
+			Thread.sleep(100);
+			queue = client.getQueue("/", "all.args.1");
+		}
+		Map<String, Object> arguments = queue.getArguments();
+		assertThat(arguments.get("x-message-ttl")).isEqualTo(1000);
+		assertThat(arguments.get("x-expires")).isEqualTo(200_000);
+		assertThat(arguments.get("x-max-length")).isEqualTo(42);
+		assertThat(arguments.get("x-max-length-bytes")).isEqualTo(10_000);
+		assertThat(arguments.get("x-overflow")).isEqualTo("reject-publish");
+		assertThat(arguments.get("x-dead-letter-exchange")).isEqualTo("reply.dlx");
+		assertThat(arguments.get("x-dead-letter-routing-key")).isEqualTo("reply.dlrk");
+		assertThat(arguments.get("x-max-priority")).isEqualTo(4);
+		assertThat(arguments.get("x-queue-mode")).isEqualTo("lazy");
+		assertThat(arguments.get("x-queue-master-locator")).isEqualTo("min-masters");
+	}
+
+	@Test
+	public void testQueueArgs2() throws MalformedURLException, URISyntaxException, InterruptedException {
+		Client client = new Client(brokerRunning.getAdminUri(), brokerRunning.getAdminUser(),
+				brokerRunning.getAdminPassword());
+		QueueInfo queue = client.getQueue("/", "all.args.2");
+		int n = 0;
+		while (n++ < 100 && queue == null) {
+			Thread.sleep(100);
+			queue = client.getQueue("/", "all.args.1");
+		}
+		Map<String, Object> arguments = queue.getArguments();
+		assertThat(arguments.get("x-message-ttl")).isEqualTo(1000);
+		assertThat(arguments.get("x-expires")).isEqualTo(200_000);
+		assertThat(arguments.get("x-max-length")).isEqualTo(42);
+		assertThat(arguments.get("x-max-length-bytes")).isEqualTo(10_000);
+		assertThat(arguments.get("x-overflow")).isEqualTo("drop-head");
+		assertThat(arguments.get("x-dead-letter-exchange")).isEqualTo("reply.dlx");
+		assertThat(arguments.get("x-dead-letter-routing-key")).isEqualTo("reply.dlrk");
+		assertThat(arguments.get("x-max-priority")).isEqualTo(4);
+		assertThat(arguments.get("x-queue-mode")).isEqualTo("lazy");
+		assertThat(arguments.get("x-queue-master-locator")).isEqualTo("client-local");
+	}
+
+	@Test
+	public void testQueueArgs3() throws MalformedURLException, URISyntaxException, InterruptedException {
+		Client client = new Client(brokerRunning.getAdminUri(), brokerRunning.getAdminUser(),
+				brokerRunning.getAdminPassword());
+		QueueInfo queue = client.getQueue("/", "all.args.3");
+		int n = 0;
+		while (n++ < 100 && queue == null) {
+			Thread.sleep(100);
+			queue = client.getQueue("/", "all.args.1");
+		}
+		Map<String, Object> arguments = queue.getArguments();
+		assertThat(arguments.get("x-message-ttl")).isEqualTo(1000);
+		assertThat(arguments.get("x-expires")).isEqualTo(200_000);
+		assertThat(arguments.get("x-max-length")).isEqualTo(42);
+		assertThat(arguments.get("x-max-length-bytes")).isEqualTo(10_000);
+		assertThat(arguments.get("x-overflow")).isEqualTo("reject-publish");
+		assertThat(arguments.get("x-dead-letter-exchange")).isEqualTo("reply.dlx");
+		assertThat(arguments.get("x-dead-letter-routing-key")).isEqualTo("reply.dlrk");
+		assertThat(arguments.get("x-max-priority")).isEqualTo(4);
+		assertThat(arguments.get("x-queue-mode")).isEqualTo("lazy");
+		assertThat(arguments.get("x-queue-master-locator")).isEqualTo("random");
+
+		ExchangeInfo exchange = client.getExchange("/", "dlx.test.requestEx");
+		assertThat(exchange.getArguments().get("alternate-exchange")).isEqualTo("alternate");
+}
 
 	@Configuration
 	public static class FixedReplyQueueDeadLetterConfig {
@@ -141,7 +231,11 @@ public class FixedReplyQueueDeadLetterTests {
 		 */
 		@Bean
 		public DirectExchange ex() {
-			return new DirectExchange("dlx.test.requestEx", false, true);
+			return ExchangeBuilder.directExchange("dlx.test.requestEx")
+					.durable(false)
+					.autoDelete()
+					.alternate("alternate")
+					.build();
 		}
 
 		@Bean
@@ -189,6 +283,54 @@ public class FixedReplyQueueDeadLetterTests {
 		}
 
 		@Bean
+		public Queue allArgs1() {
+			return QueueBuilder.nonDurable("all.args.1")
+					.ttl(1000)
+					.expires(200_000)
+					.maxLength(42)
+					.maxLengthBytes(10_000)
+					.overflow(Overflow.rejectPublish)
+					.deadLetterExchange("reply.dlx")
+					.deadLetterRoutingKey("reply.dlrk")
+					.maxPriority(4)
+					.lazy()
+					.masterLocator(MasterLocator.minMasters)
+					.build();
+		}
+
+		@Bean
+		public Queue allArgs2() {
+			return QueueBuilder.nonDurable("all.args.2")
+					.ttl(1000)
+					.expires(200_000)
+					.maxLength(42)
+					.maxLengthBytes(10_000)
+					.overflow(Overflow.dropHead)
+					.deadLetterExchange("reply.dlx")
+					.deadLetterRoutingKey("reply.dlrk")
+					.maxPriority(4)
+					.lazy()
+					.masterLocator(MasterLocator.clientLocal)
+					.build();
+		}
+
+		@Bean
+		public Queue allArgs3() {
+			return QueueBuilder.nonDurable("all.args.3")
+					.ttl(1000)
+					.expires(200_000)
+					.maxLength(42)
+					.maxLengthBytes(10_000)
+					.overflow(Overflow.rejectPublish)
+					.deadLetterExchange("reply.dlx")
+					.deadLetterRoutingKey("reply.dlrk")
+					.maxPriority(4)
+					.lazy()
+					.masterLocator(MasterLocator.random)
+					.build();
+		}
+
+		@Bean
 		public DeadListener deadListener() {
 			return new DeadListener();
 		}
@@ -226,7 +368,7 @@ public class FixedReplyQueueDeadLetterTests {
 	public static class DeadListener {
 		private final CountDownLatch latch = new CountDownLatch(1);
 
-		public void handleMessage(String foo) {
+		public void handleMessage(@SuppressWarnings("unused") String foo) {
 			latch.countDown();
 		}
 

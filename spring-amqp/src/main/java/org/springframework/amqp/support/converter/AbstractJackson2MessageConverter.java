@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -18,6 +18,8 @@ package org.springframework.amqp.support.converter;
 
 import java.io.IOException;
 import java.lang.reflect.Type;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -53,9 +55,10 @@ public abstract class AbstractJackson2MessageConverter extends AbstractMessageCo
 
 	protected final Log log = LogFactory.getLog(getClass()); // NOSONAR protected
 
-	public static final String DEFAULT_CHARSET = "UTF-8";
-
-	private volatile String defaultCharset = DEFAULT_CHARSET;
+	/**
+	 * The charset used when converting {@link String} to/from {@code byte[]}.
+	 */
+	public static final Charset DEFAULT_CHARSET = StandardCharsets.UTF_8;
 
 	/**
 	 * The supported content type; only the subtype is checked, e.g. *&#47;json,
@@ -68,11 +71,21 @@ public abstract class AbstractJackson2MessageConverter extends AbstractMessageCo
 	@Nullable
 	private ClassMapper classMapper = null;
 
+	private Charset defaultCharset = DEFAULT_CHARSET;
+
 	private boolean typeMapperSet;
 
 	private ClassLoader classLoader = ClassUtils.getDefaultClassLoader();
 
 	private Jackson2JavaTypeMapper javaTypeMapper = new DefaultJackson2JavaTypeMapper();
+
+	private boolean useProjectionForInterfaces;
+
+	private ProjectingMessageConverter projectingConverter;
+
+	private boolean standardCharset;
+
+	private boolean assumeSupportedContentType = true;
 
 	/**
 	 * Construct with the provided {@link ObjectMapper} instance.
@@ -107,12 +120,15 @@ public abstract class AbstractJackson2MessageConverter extends AbstractMessageCo
 	 * @param defaultCharset The default charset.
 	 */
 	public void setDefaultCharset(@Nullable String defaultCharset) {
-		this.defaultCharset = (defaultCharset != null) ? defaultCharset
+		this.defaultCharset = (defaultCharset != null) ? Charset.forName(defaultCharset)
 				: DEFAULT_CHARSET;
+		if (this.defaultCharset.equals(StandardCharsets.UTF_8)) {
+			this.standardCharset = true;
+		}
 	}
 
 	public String getDefaultCharset() {
-		return this.defaultCharset;
+		return this.defaultCharset.name();
 	}
 
 	@Override
@@ -184,6 +200,39 @@ public abstract class AbstractJackson2MessageConverter extends AbstractMessageCo
 		}
 	}
 
+	protected boolean isUseProjectionForInterfaces() {
+		return this.useProjectionForInterfaces;
+	}
+
+	/**
+	 * Set to true to use Spring Data projection to create the object if the inferred
+	 * parameter type is an interface.
+	 * @param useProjectionForInterfaces true to use projection.
+	 * @since 2.2
+	 */
+	public void setUseProjectionForInterfaces(boolean useProjectionForInterfaces) {
+		this.useProjectionForInterfaces = useProjectionForInterfaces;
+		if (useProjectionForInterfaces) {
+			if (!ClassUtils.isPresent("org.springframework.data.projection.ProjectionFactory", this.classLoader)) {
+				throw new IllegalStateException("'spring-data-commons' is required to use Projection Interfaces");
+			}
+			this.projectingConverter = new ProjectingMessageConverter(this.objectMapper);
+		}
+	}
+
+	/**
+	 * By default the supported content type is assumed when there is no contentType
+	 * property or it is set to the default ('application/octet-stream'). Set to 'false'
+	 * to revert to the previous behavior of returning an unconverted 'byte[]' when this
+	 * condition exists.
+	 * @param assumeSupportedContentType set false to not assume the content type is
+	 * supported.
+	 * @since 2.2
+	 */
+	public void setAssumeSupportedContentType(boolean assumeSupportedContentType) {
+		this.assumeSupportedContentType = assumeSupportedContentType;
+	}
+
 	@Override
 	public Object fromMessage(Message message) throws MessageConversionException {
 		return fromMessage(message, null);
@@ -199,34 +248,14 @@ public abstract class AbstractJackson2MessageConverter extends AbstractMessageCo
 		MessageProperties properties = message.getMessageProperties();
 		if (properties != null) {
 			String contentType = properties.getContentType();
-			if (contentType != null && contentType.contains(this.supportedContentType.getSubtype())) {
+			if ((this.assumeSupportedContentType // NOSONAR Boolean complexity
+					&& (contentType == null || contentType.equals(MessageProperties.DEFAULT_CONTENT_TYPE)))
+					|| (contentType != null && contentType.contains(this.supportedContentType.getSubtype()))) {
 				String encoding = properties.getContentEncoding();
 				if (encoding == null) {
 					encoding = getDefaultCharset();
 				}
-				try {
-					if (conversionHint instanceof ParameterizedTypeReference) {
-						content = convertBytesToObject(message.getBody(), encoding,
-								this.objectMapper.getTypeFactory().constructType(
-										((ParameterizedTypeReference<?>) conversionHint).getType()));
-					}
-					else if (getClassMapper() == null) {
-						JavaType targetJavaType = getJavaTypeMapper()
-								.toJavaType(message.getMessageProperties());
-						content = convertBytesToObject(message.getBody(),
-								encoding, targetJavaType);
-					}
-					else {
-						Class<?> targetClass = getClassMapper().toClass(// NOSONAR never null
-								message.getMessageProperties());
-						content = convertBytesToObject(message.getBody(),
-								encoding, targetClass);
-					}
-				}
-				catch (IOException e) {
-					throw new MessageConversionException(
-							"Failed to convert Message content", e);
-				}
+				content = doFromMessage(message, conversionHint, properties, encoding);
 			}
 			else {
 				if (this.log.isWarnEnabled()) {
@@ -237,6 +266,41 @@ public abstract class AbstractJackson2MessageConverter extends AbstractMessageCo
 		}
 		if (content == null) {
 			content = message.getBody();
+		}
+		return content;
+	}
+
+	private Object doFromMessage(Message message, Object conversionHint, MessageProperties properties,
+			String encoding) {
+
+		Object content;
+		try {
+			JavaType inferredType = this.javaTypeMapper.getInferredType(properties);
+			if (inferredType != null && this.useProjectionForInterfaces && inferredType.isInterface()
+					&& !inferredType.getRawClass().getPackage().getName().startsWith("java.util")) { // List etc
+				content = this.projectingConverter.convert(message, inferredType.getRawClass());
+			}
+			else if (conversionHint instanceof ParameterizedTypeReference) {
+				content = convertBytesToObject(message.getBody(), encoding,
+						this.objectMapper.getTypeFactory().constructType(
+								((ParameterizedTypeReference<?>) conversionHint).getType()));
+			}
+			else if (getClassMapper() == null) {
+				JavaType targetJavaType = getJavaTypeMapper()
+						.toJavaType(message.getMessageProperties());
+				content = convertBytesToObject(message.getBody(),
+						encoding, targetJavaType);
+			}
+			else {
+				Class<?> targetClass = getClassMapper().toClass(// NOSONAR never null
+						message.getMessageProperties());
+				content = convertBytesToObject(message.getBody(),
+						encoding, targetClass);
+			}
+		}
+		catch (IOException e) {
+			throw new MessageConversionException(
+					"Failed to convert Message content", e);
 		}
 		return content;
 	}
@@ -260,14 +324,19 @@ public abstract class AbstractJackson2MessageConverter extends AbstractMessageCo
 
 	@Override
 	protected Message createMessage(Object objectToConvert, MessageProperties messageProperties,
-				@Nullable Type genericType)
+			@Nullable Type genericType)
 			throws MessageConversionException {
 
 		byte[] bytes;
 		try {
-			String jsonString = this.objectMapper
-					.writeValueAsString(objectToConvert);
-			bytes = jsonString.getBytes(getDefaultCharset());
+			if (this.standardCharset) {
+				bytes = this.objectMapper.writeValueAsBytes(objectToConvert);
+			}
+			else {
+				String jsonString = this.objectMapper
+						.writeValueAsString(objectToConvert);
+				bytes = jsonString.getBytes(getDefaultCharset());
+			}
 		}
 		catch (IOException e) {
 			throw new MessageConversionException("Failed to convert Message content", e);

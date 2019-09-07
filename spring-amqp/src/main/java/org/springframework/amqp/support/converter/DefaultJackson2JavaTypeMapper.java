@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -31,7 +31,6 @@ import com.fasterxml.jackson.databind.type.TypeFactory;
 
 /**
  * Jackson 2 type mapper.
- *
  * @author Mark Pollack
  * @author Sam Nelson
  * @author Andreas Asplund
@@ -112,13 +111,11 @@ public class DefaultJackson2JavaTypeMapper extends AbstractJavaTypeMapper implem
 
 	@Override
 	public JavaType toJavaType(MessageProperties properties) {
-		boolean hasInferredTypeHeader = hasInferredTypeHeader(properties);
-		if (hasInferredTypeHeader && this.typePrecedence.equals(TypePrecedence.INFERRED)) {
-			JavaType targetType = fromInferredTypeHeader(properties);
-			if ((!targetType.isAbstract() && !targetType.isInterface())
-					|| targetType.getRawClass().getPackage().getName().startsWith("java.util")) {
-				return targetType;
-			}
+		JavaType inferredType = getInferredType(properties);
+		if (inferredType != null
+			 && ((!inferredType.isAbstract() && !inferredType.isInterface()
+					|| inferredType.getRawClass().getPackage().getName().startsWith("java.util")))) {
+			return inferredType;
 		}
 
 		String typeIdHeader = retrieveHeaderAsString(properties, getClassIdFieldName());
@@ -127,7 +124,7 @@ public class DefaultJackson2JavaTypeMapper extends AbstractJavaTypeMapper implem
 			return fromTypeHeader(properties, typeIdHeader);
 		}
 
-		if (hasInferredTypeHeader) {
+		if (hasInferredTypeHeader(properties)) {
 			return fromInferredTypeHeader(properties);
 		}
 
@@ -149,6 +146,15 @@ public class DefaultJackson2JavaTypeMapper extends AbstractJavaTypeMapper implem
 		JavaType keyClassType = getClassIdType(retrieveHeader(properties, getKeyClassIdFieldName()));
 		return TypeFactory.defaultInstance()
 				.constructMapLikeType(classType.getRawClass(), keyClassType, contentClassType);
+	}
+
+	@Override
+	@Nullable
+	public JavaType getInferredType(MessageProperties properties) {
+		if (hasInferredTypeHeader(properties) && this.typePrecedence.equals(TypePrecedence.INFERRED)) {
+			return fromInferredTypeHeader(properties);
+		}
+		return null;
 	}
 
 	private JavaType getClassIdType(String classId) {

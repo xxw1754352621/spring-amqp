@@ -1,11 +1,11 @@
 /*
- * Copyright 2002-2018 the original author or authors.
+ * Copyright 2002-2019 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -28,7 +28,7 @@ import org.springframework.amqp.core.Message;
 import org.springframework.amqp.core.MessageListener;
 import org.springframework.amqp.core.MessageProperties;
 import org.springframework.amqp.rabbit.listener.api.ChannelAwareMessageListener;
-import org.springframework.amqp.rabbit.listener.exception.ListenerExecutionFailedException;
+import org.springframework.amqp.rabbit.support.ListenerExecutionFailedException;
 import org.springframework.amqp.support.converter.MessageConverter;
 import org.springframework.util.Assert;
 import org.springframework.util.MethodInvoker;
@@ -117,6 +117,7 @@ import com.rabbitmq.client.Channel;
  * @author Dave Syer
  * @author Gary Russell
  * @author Greg Turnquist
+ * @author Cai Kun
  *
  * @see #setDelegate
  * @see #setDefaultListenerMethod
@@ -288,7 +289,7 @@ public class MessageListenerAdapter extends AbstractAdaptableMessageListener {
 		}
 
 		// Invoke the handler method with appropriate arguments.
-		Object[] listenerArguments = buildListenerArguments(convertedMessage);
+		Object[] listenerArguments = buildListenerArguments(convertedMessage, channel, message);
 		Object result = invokeListenerMethod(methodName, listenerArguments, message);
 		if (result != null) {
 			handleResult(new InvocationResult(result, null, null), message, channel);
@@ -339,9 +340,29 @@ public class MessageListenerAdapter extends AbstractAdaptableMessageListener {
 	 * @param extractedMessage the content of the message
 	 * @return the array of arguments to be passed into the listener method (each element of the array corresponding to
 	 * a distinct method argument)
+	 * @deprecated use @{@link #buildListenerArguments(Object, Channel, Message)} to get complete arguments
 	 */
+	@Deprecated
 	protected Object[] buildListenerArguments(Object extractedMessage) {
-		return new Object[] {extractedMessage};
+		return new Object[] { extractedMessage };
+	}
+
+	/**
+	 * Build an array of arguments to be passed into the target listener method. Allows for multiple method arguments to
+	 * be built from message object with channel, More detail about {@code extractedMessage} in the method
+	 * {@link #buildListenerArguments(java.lang.Object)}.
+	 * This can be overridden to treat special message content such as arrays differently, and add argument in case of
+	 * receiving Channel and original Message object to invoke basicAck method in the listener by manual acknowledge
+	 * mode.
+	 * @param extractedMessage the content of the message
+	 * @param channel the Rabbit channel to operate on
+	 * @param message the incoming Rabbit message
+	 * @return the array of arguments to be passed into the listener method (each element of the array corresponding to
+	 * a distinct method argument)
+	 */
+	@SuppressWarnings("deprecation")
+	protected Object[] buildListenerArguments(Object extractedMessage, Channel channel, Message message) {
+		return buildListenerArguments(extractedMessage);
 	}
 
 	/**
@@ -369,12 +390,11 @@ public class MessageListenerAdapter extends AbstractAdaptableMessageListener {
 			}
 			else {
 				throw new ListenerExecutionFailedException("Listener method '" // NOSONAR lost stack trace
-							+ methodName + "' threw exception",
-						targetEx, originalMessage);
+						+ methodName + "' threw exception", targetEx, originalMessage);
 			}
 		}
 		catch (Exception ex) {
-			ArrayList<String> arrayClass = new ArrayList<String>();
+			ArrayList<String> arrayClass = new ArrayList<>();
 			if (arguments != null) {
 				for (Object argument : arguments) {
 					arrayClass.add(argument.getClass().toString());

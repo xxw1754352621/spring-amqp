@@ -1,11 +1,11 @@
 /*
- * Copyright 2016-2018 the original author or authors.
+ * Copyright 2016-2019 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,23 +16,17 @@
 
 package org.springframework.amqp.rabbit.listener;
 
-import static org.hamcrest.Matchers.equalTo;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertSame;
-import static org.junit.Assert.assertThat;
-import static org.junit.Assert.assertTrue;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
-import org.junit.After;
-import org.junit.Rule;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 import org.springframework.amqp.core.Address;
 import org.springframework.amqp.rabbit.connection.CachingConnectionFactory;
-import org.springframework.amqp.rabbit.junit.BrokerRunning;
+import org.springframework.amqp.rabbit.junit.RabbitAvailable;
 import org.springframework.amqp.rabbit.listener.DirectReplyToMessageListenerContainer.ChannelHolder;
 import org.springframework.amqp.rabbit.listener.api.ChannelAwareMessageListener;
 import org.springframework.amqp.utils.test.TestUtils;
@@ -49,17 +43,10 @@ import com.rabbitmq.client.GetResponse;
  * @since 2.0
  *
  */
+@RabbitAvailable(queues = DirectReplyToMessageListenerContainerTests.TEST_RELEASE_CONSUMER_Q)
 public class DirectReplyToMessageListenerContainerTests {
 
-	private static final String TEST_RELEASE_CONSUMER_Q = "test.release.consumer";
-
-	@Rule
-	public BrokerRunning brokerRunning = BrokerRunning.isRunningWithEmptyQueues(TEST_RELEASE_CONSUMER_Q);
-
-	@After
-	public void tearDown() {
-		this.brokerRunning.removeTestQueues();
-	}
+	public static final String TEST_RELEASE_CONSUMER_Q = "test.release.consumer";
 
 	@Test
 	public void testReleaseConsumerRace() throws Exception {
@@ -102,18 +89,18 @@ public class DirectReplyToMessageListenerContainerTests {
 			Thread.sleep(100);
 			request = replyChannel.basicGet(TEST_RELEASE_CONSUMER_Q, true);
 		}
-		assertNotNull(request);
+		assertThat(request).isNotNull();
 		replyChannel.basicPublish("", request.getProps().getReplyTo(), new BasicProperties(), "bar".getBytes());
 		replyChannel.close();
-		assertTrue(latch.await(10, TimeUnit.SECONDS));
+		assertThat(latch.await(10, TimeUnit.SECONDS)).isTrue();
 
 		ChannelHolder channel2 = container.getChannelHolder();
-		assertSame(channel1.getChannel(), channel2.getChannel());
+		assertThat(channel2.getChannel()).isSameAs(channel1.getChannel());
 		container.releaseConsumerFor(channel1, false, null); // simulate race for future timeout/cancel and onMessage()
 		Map<?, ?> inUse = TestUtils.getPropertyValue(container, "inUseConsumerChannels", Map.class);
-		assertThat(inUse.size(), equalTo(1));
+		assertThat(inUse).hasSize(1);
 		container.releaseConsumerFor(channel2, false, null);
-		assertThat(inUse.size(), equalTo(0));
+		assertThat(inUse).hasSize(0);
 		container.stop();
 		connectionFactory.destroy();
 	}

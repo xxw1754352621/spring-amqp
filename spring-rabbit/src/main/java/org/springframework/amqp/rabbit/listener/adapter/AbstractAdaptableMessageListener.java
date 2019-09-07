@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -33,6 +33,7 @@ import org.springframework.amqp.core.Message;
 import org.springframework.amqp.core.MessagePostProcessor;
 import org.springframework.amqp.core.MessageProperties;
 import org.springframework.amqp.rabbit.listener.api.ChannelAwareMessageListener;
+import org.springframework.amqp.rabbit.listener.support.ContainerUtils;
 import org.springframework.amqp.rabbit.support.DefaultMessagePropertiesConverter;
 import org.springframework.amqp.rabbit.support.MessagePropertiesConverter;
 import org.springframework.amqp.rabbit.support.RabbitExceptionTranslator;
@@ -64,6 +65,7 @@ import reactor.core.publisher.Mono;
  * @author Stephane Nicoll
  * @author Gary Russell
  * @author Artem Bilan
+ * @author Johan Haleby
  *
  * @since 1.4
  *
@@ -80,9 +82,11 @@ public abstract class AbstractAdaptableMessageListener implements ChannelAwareMe
 	private static final ParserContext PARSER_CONTEXT = new TemplateParserContext("!{", "}");
 
 	private static final boolean monoPresent = // NOSONAR - lower case
-			ClassUtils.isPresent("reactor.core.publisher.Mono", ChannelAwareMessageListener.class.getClassLoader());;
+			ClassUtils.isPresent("reactor.core.publisher.Mono", ChannelAwareMessageListener.class.getClassLoader());
 
-	/** Logger available to subclasses. */
+	/**
+	 * Logger available to subclasses.
+	 */
 	protected final Log logger = LogFactory.getLog(getClass()); // NOSONAR protected
 
 	private final StandardEvaluationContext evalContext = new StandardEvaluationContext();
@@ -95,7 +99,7 @@ public abstract class AbstractAdaptableMessageListener implements ChannelAwareMe
 
 	private Expression responseExpression;
 
-	private volatile boolean mandatoryPublish;
+	private boolean mandatoryPublish;
 
 	private MessageConverter messageConverter = new SimpleMessageConverter();
 
@@ -111,6 +115,7 @@ public abstract class AbstractAdaptableMessageListener implements ChannelAwareMe
 
 	private boolean isManualAck;
 
+	private boolean defaultRequeueRejected = true;
 
 	/**
 	 * Set the routing key to use when sending response messages.
@@ -195,17 +200,6 @@ public abstract class AbstractAdaptableMessageListener implements ChannelAwareMe
 	}
 
 	/**
-	 * Set a post processor to process the reply immediately before
-	 * {@code Channel#basicPublish()}. Often used to compress the data.
-	 * @param replyPostProcessor the reply post processor.
-	 * @deprecated in favor of {@link #setBeforeSendReplyPostProcessors(MessagePostProcessor...)}.
-	 */
-	@Deprecated
-	public void setReplyPostProcessor(MessagePostProcessor replyPostProcessor) {
-		setBeforeSendReplyPostProcessors(replyPostProcessor);
-	}
-
-	/**
 	 * Set post processors that will be applied before sending replies.
 	 * @param beforeSendReplyPostProcessors the post processors.
 	 * @since 2.0.3
@@ -255,6 +249,16 @@ public abstract class AbstractAdaptableMessageListener implements ChannelAwareMe
 	 */
 	protected MessageConverter getMessageConverter() {
 		return this.messageConverter;
+	}
+
+	/**
+	 * Set to the value of this listener's container equivalent property. Used when
+	 * rejecting from an async listener.
+	 * @param defaultRequeueRejected false to not requeue.
+	 * @since 2.1.8
+	 */
+	public void setDefaultRequeueRejected(boolean defaultRequeueRejected) {
+		this.defaultRequeueRejected = defaultRequeueRejected;
 	}
 
 	@Override
@@ -323,7 +327,10 @@ public abstract class AbstractAdaptableMessageListener implements ChannelAwareMe
 							+ "otherwise the container will ack the message immediately");
 				}
 				((ListenableFuture<?>) resultArg.getReturnValue()).addCallback(
-						r -> asyncSuccess(resultArg, request, channel, source, r),
+						r -> {
+							asyncSuccess(resultArg, request, channel, source, r);
+							basicAck(request, channel);
+						},
 						t -> asyncFailure(request, channel, t));
 			}
 			else if (monoPresent && MonoHandler.isMono(resultArg.getReturnValue())) {
@@ -333,7 +340,8 @@ public abstract class AbstractAdaptableMessageListener implements ChannelAwareMe
 				}
 				MonoHandler.subscribe(resultArg.getReturnValue(),
 						r -> asyncSuccess(resultArg, request, channel, source, r),
-						t -> asyncFailure(request, channel, t));
+						t -> asyncFailure(request, channel, t),
+						() -> basicAck(request, channel));
 			}
 			else {
 				doHandleResult(resultArg, request, channel, source);
@@ -345,14 +353,34 @@ public abstract class AbstractAdaptableMessageListener implements ChannelAwareMe
 		}
 	}
 
-	private void asyncSuccess(InvocationResult resultArg, Message request, Channel channel, Object source, Object r) {
-		// We only get here with Mono<?> and ListenableFuture<?> which have exactly one type argument
-		Type returnType = ((ParameterizedType) resultArg.getReturnType()).getActualTypeArguments()[0]; // NOSONAR
-		if (returnType instanceof WildcardType) {
-			// Set the return type to null so the converter will use the actual returned object's class for type info
-			returnType = null;
+	private void asyncSuccess(InvocationResult resultArg, Message request, Channel channel, Object source,
+			Object deferredResult) {
+
+		if (deferredResult == null) {
+			if (this.logger.isDebugEnabled()) {
+				this.logger.debug("Async result is null, ignoring");
+			}
 		}
-		doHandleResult(new InvocationResult(r, resultArg.getSendTo(), returnType), request, channel, source);
+		else {
+			// We only get here with Mono<?> and ListenableFuture<?> which have exactly one type argument
+			Type returnType = resultArg.getReturnType();
+			if (returnType != null) {
+				Type[] actualTypeArguments = ((ParameterizedType) returnType).getActualTypeArguments();
+				if (actualTypeArguments.length > 0) {
+					returnType = actualTypeArguments[0]; // NOSONAR
+					if (returnType instanceof WildcardType) {
+						// Set the return type to null so the converter will use the actual returned
+						// object's class for type info
+						returnType = null;
+					}
+				}
+			}
+			doHandleResult(new InvocationResult(deferredResult, resultArg.getSendTo(), returnType), request, channel,
+					source);
+		}
+	}
+
+	private void basicAck(Message request, Channel channel) {
 		try {
 			channel.basicAck(request.getMessageProperties().getDeliveryTag(), false);
 		}
@@ -364,7 +392,8 @@ public abstract class AbstractAdaptableMessageListener implements ChannelAwareMe
 	private void asyncFailure(Message request, Channel channel, Throwable t) {
 		this.logger.error("Future or Mono was completed with an exception for " + request, t);
 		try {
-			channel.basicNack(request.getMessageProperties().getDeliveryTag(), false, true);
+			channel.basicNack(request.getMessageProperties().getDeliveryTag(), false,
+					ContainerUtils.shouldRequeue(this.defaultRequeueRejected, t, this.logger));
 		}
 		catch (IOException e) {
 			this.logger.error("Failed to nack message", e);
@@ -476,7 +505,7 @@ public abstract class AbstractAdaptableMessageListener implements ChannelAwareMe
 	}
 
 	private Address evaluateReplyTo(Message request, Object source, Object result, Expression expression) {
-		Address replyTo = null;
+		Address replyTo;
 		Object value = expression.getValue(this.evalContext, new ReplyExpressionRoot(request, source, result));
 		Assert.state(value instanceof String || value instanceof Address,
 				"response expression must evaluate to a String or Address");
@@ -582,7 +611,7 @@ public abstract class AbstractAdaptableMessageListener implements ChannelAwareMe
 
 	}
 
-	private static class MonoHandler {
+	private static class MonoHandler { // NOSONAR - pointless to name it ..Utils|Helper
 
 		static boolean isMono(Object result) {
 			return result instanceof Mono;
@@ -590,9 +619,9 @@ public abstract class AbstractAdaptableMessageListener implements ChannelAwareMe
 
 		@SuppressWarnings("unchecked")
 		static void subscribe(Object returnValue, Consumer<? super Object> success,
-				Consumer<? super Throwable> failure) {
+				Consumer<? super Throwable> failure, Runnable completeConsumer) {
 
-			((Mono<? super Object>) returnValue).subscribe(success, failure);
+			((Mono<? super Object>) returnValue).subscribe(success, failure, completeConsumer);
 		}
 
 	}

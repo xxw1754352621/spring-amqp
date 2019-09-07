@@ -1,11 +1,11 @@
 /*
- * Copyright 2015-2018 the original author or authors.
+ * Copyright 2019 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,27 +16,27 @@
 
 package org.springframework.amqp.rabbit.connection;
 
+import java.util.concurrent.ExecutorService;
+
+import com.rabbitmq.client.Channel;
+
 /**
- * Connection factories implementing this interface return a connection that
- * provides {@code PublisherCallbackChannel} channel instances when confirms
- * or returns are enabled.
- * @deprecated in favor of default methods on ConnectionFactory.
+ * A factory for {@link PublisherCallbackChannel}s.
  *
  * @author Gary Russell
- * @since 1.5
+ * @since 2.1.6
  *
  */
-@Deprecated
-public interface PublisherCallbackChannelConnectionFactory {
+@FunctionalInterface
+public interface PublisherCallbackChannelFactory {
 
 	/**
-	 * @return true if publisher confirms are enabled.
+	 * Create a {@link PublisherCallbackChannel} instance based on the provided delegate
+	 * and executor.
+	 * @param delegate the delegate channel.
+	 * @param executor the executor.
+	 * @return the channel.
 	 */
-	boolean isPublisherConfirms();
-
-	/**
-	 * @return true if publisher returns are enabled.
-	 */
-	boolean isPublisherReturns();
+	PublisherCallbackChannel createChannel(Channel delegate, ExecutorService executor);
 
 }

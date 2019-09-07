@@ -1,11 +1,11 @@
 /*
- * Copyright 2017 the original author or authors.
+ * Copyright 2017-2019 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -23,7 +23,8 @@ import org.junit.jupiter.api.extension.ConditionEvaluationResult;
 import org.junit.jupiter.api.extension.ExecutionCondition;
 import org.junit.jupiter.api.extension.ExtensionContext;
 
-import org.springframework.core.annotation.AnnotationUtils;
+import org.springframework.core.annotation.MergedAnnotation;
+import org.springframework.core.annotation.MergedAnnotations;
 import org.springframework.util.StringUtils;
 
 /**
@@ -42,14 +43,17 @@ public class LongRunningIntegrationTestCondition implements ExecutionCondition {
 	@Override
 	public ConditionEvaluationResult evaluateExecutionCondition(ExtensionContext context) {
 		Optional<AnnotatedElement> element = context.getElement();
-		LongRunning longRunning = AnnotationUtils.findAnnotation(element.get(), LongRunning.class);
-		if (longRunning != null) {
+		MergedAnnotations annotations = MergedAnnotations.from(element.get(),
+				MergedAnnotations.SearchStrategy.TYPE_HIERARCHY);
+		MergedAnnotation<LongRunning> mergedAnnotation = annotations.get(LongRunning.class);
+		if (mergedAnnotation.isPresent()) {
+			LongRunning longRunning = mergedAnnotation.synthesize();
 			String property = longRunning.value();
 			if (!StringUtils.hasText(property)) {
 				property = LongRunningIntegrationTest.RUN_LONG_INTEGRATION_TESTS;
 			}
-			LongRunningIntegrationTest lrit = new LongRunningIntegrationTest(property);
-			return lrit.isShouldRun() ? ConditionEvaluationResult.enabled("Long running tests must run")
+			return JUnitUtils.parseBooleanProperty(property)
+					? ConditionEvaluationResult.enabled("Long running tests must run")
 					: ConditionEvaluationResult.disabled("Long running tests are skipped");
 		}
 		return ENABLED;

@@ -4,9 +4,9 @@
 	xmlns:rabbit="http://www.springframework.org/schema/rabbit"
 	xmlns:beans="http://www.springframework.org/schema/beans"
 	xmlns:util="http://www.springframework.org/schema/util"
-	xsi:schemaLocation="http://www.springframework.org/schema/rabbit http://www.springframework.org/schema/rabbit/spring-rabbit.xsd
-		http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd
-		http://www.springframework.org/schema/util http://www.springframework.org/schema/util/spring-util.xsd">
+	xsi:schemaLocation="http://www.springframework.org/schema/rabbit https://www.springframework.org/schema/rabbit/spring-rabbit.xsd
+		http://www.springframework.org/schema/beans https://www.springframework.org/schema/beans/spring-beans.xsd
+		http://www.springframework.org/schema/util https://www.springframework.org/schema/util/spring-util.xsd">
 
 	<bean class="org.springframework.beans.factory.config.PropertyPlaceholderConfigurer">
 		<property name="properties">
@@ -34,9 +34,9 @@
 
 	<rabbit:queue id="customAnon" naming-strategy="customNamer" />
 
-	<bean id="uuidNamer" class="org.springframework.amqp.core.AnonymousQueue.UUIDNamingStrategy" />
+	<bean id="uuidNamer" class="org.springframework.amqp.core.UUIDNamingStrategy" />
 
-	<bean id="customNamer" class="org.springframework.amqp.core.AnonymousQueue.Base64UrlNamingStrategy">
+	<bean id="customNamer" class="org.springframework.amqp.core.Base64UrlNamingStrategy">
 		<constructor-arg value="custom.gen-" />
 	</bean>
 

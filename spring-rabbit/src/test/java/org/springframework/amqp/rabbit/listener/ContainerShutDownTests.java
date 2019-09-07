@@ -1,11 +1,11 @@
 /*
- * Copyright 2017-2018 the original author or authors.
+ * Copyright 2017-2019 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,23 +16,19 @@
 
 package org.springframework.amqp.rabbit.listener;
 
-import static org.hamcrest.Matchers.equalTo;
-import static org.junit.Assert.assertThat;
-import static org.junit.Assert.assertTrue;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
-import org.junit.AfterClass;
-import org.junit.ClassRule;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 import org.springframework.amqp.rabbit.connection.CachingConnectionFactory;
 import org.springframework.amqp.rabbit.connection.Connection;
 import org.springframework.amqp.rabbit.connection.RabbitUtils;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
-import org.springframework.amqp.rabbit.junit.BrokerRunning;
+import org.springframework.amqp.rabbit.junit.RabbitAvailable;
 import org.springframework.amqp.utils.test.TestUtils;
 
 import com.rabbitmq.client.AMQP.BasicProperties;
@@ -42,15 +38,8 @@ import com.rabbitmq.client.AMQP.BasicProperties;
  * @since 2.0
  *
  */
+@RabbitAvailable(queues = "test.shutdown")
 public class ContainerShutDownTests {
-
-	@ClassRule
-	public static BrokerRunning brokerRunning = BrokerRunning.isRunningWithEmptyQueues("test.shutdown");
-
-	@AfterClass
-	public static void tearDown() {
-		brokerRunning.removeTestQueues();
-	}
 
 	@Test
 	public void testUninterruptibleListenerSMLC() throws Exception {
@@ -91,19 +80,19 @@ public class ContainerShutDownTests {
 				Map.class);
 		container.start();
 		try {
-			assertTrue(startLatch.await(30, TimeUnit.SECONDS));
+			assertThat(startLatch.await(30, TimeUnit.SECONDS)).isTrue();
 			RabbitTemplate template = new RabbitTemplate(cf);
 			template.execute(c -> {
 				c.basicPublish("", "test.shutdown", new BasicProperties(), "foo".getBytes());
 				RabbitUtils.setPhysicalCloseRequired(c, false);
 				return null;
 			});
-			assertTrue(latch.await(30, TimeUnit.SECONDS));
-			assertThat(channels.size(), equalTo(2));
+			assertThat(latch.await(30, TimeUnit.SECONDS)).isTrue();
+			assertThat(channels).hasSize(2);
 		}
 		finally {
 			container.stop();
-			assertThat(channels.size(), equalTo(1));
+			assertThat(channels).hasSize(1);
 
 			cf.destroy();
 			testEnded.countDown();

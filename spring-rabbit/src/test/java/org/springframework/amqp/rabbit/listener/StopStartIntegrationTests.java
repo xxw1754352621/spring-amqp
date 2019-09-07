@@ -1,11 +1,11 @@
 /*
- * Copyright 2002-2016 the original author or authors.
+ * Copyright 2002-2019 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,26 +16,23 @@
 
 package org.springframework.amqp.rabbit.listener;
 
-import static org.junit.Assert.fail;
+import static org.assertj.core.api.Assertions.fail;
 
 import java.util.concurrent.atomic.AtomicInteger;
 
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
-import org.junit.ClassRule;
-import org.junit.Test;
-import org.junit.runner.RunWith;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
 
 import org.springframework.amqp.core.Message;
 import org.springframework.amqp.core.MessageListener;
 import org.springframework.amqp.rabbit.connection.CachingConnectionFactory;
 import org.springframework.amqp.rabbit.core.RabbitAdmin;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
-import org.springframework.amqp.rabbit.junit.BrokerRunning;
+import org.springframework.amqp.rabbit.junit.RabbitAvailable;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.annotation.DirtiesContext;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
+import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
 
 /**
  * @author Gary Russell
@@ -43,13 +40,10 @@ import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
  * @since 1.1.3
  *
  */
-@ContextConfiguration
-@RunWith(SpringJUnit4ClassRunner.class)
+@SpringJUnitConfig
 @DirtiesContext
+@RabbitAvailable
 public class StopStartIntegrationTests {
-
-	@ClassRule
-	public static BrokerRunning brokerIsRunning = BrokerRunning.isRunning();
 
 	private static AtomicInteger deliveries = new AtomicInteger();
 
@@ -61,8 +55,8 @@ public class StopStartIntegrationTests {
 	@Autowired
 	private SimpleMessageListenerContainer container;
 
-	@BeforeClass
-	@AfterClass
+	@BeforeAll
+	@AfterAll
 	public static void setupAndCleanUp() {
 		CachingConnectionFactory cf = new CachingConnectionFactory("localhost");
 		RabbitAdmin admin = new RabbitAdmin(cf);

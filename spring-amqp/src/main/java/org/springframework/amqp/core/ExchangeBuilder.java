@@ -1,11 +1,11 @@
 /*
- * Copyright 2016-2017 the original author or authors.
+ * Copyright 2016-2019 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,8 +16,10 @@
 
 package org.springframework.amqp.core;
 
+import java.util.Arrays;
 import java.util.Map;
 
+import org.springframework.util.Assert;
 import org.springframework.util.ObjectUtils;
 
 /**
@@ -47,7 +49,7 @@ public final class ExchangeBuilder extends AbstractBuilder {
 
 	private boolean declare = true;
 
-	private Object[] admins;
+	private Object[] declaringAdmins;
 
 	/**
 	 * Construct an instance of the appropriate type.
@@ -108,11 +110,11 @@ public final class ExchangeBuilder extends AbstractBuilder {
 
 	/**
 	 * Set the durable flag.
-	 * @param durable the durable flag (default true).
+	 * @param isDurable the durable flag (default true).
 	 * @return the builder.
 	 */
-	public ExchangeBuilder durable(boolean durable) {
-		this.durable = durable;
+	public ExchangeBuilder durable(boolean isDurable) {
+		this.durable = isDurable;
 		return this;
 	}
 
@@ -135,6 +137,10 @@ public final class ExchangeBuilder extends AbstractBuilder {
 	public ExchangeBuilder withArguments(Map<String, Object> arguments) {
 		this.getOrCreateArguments().putAll(arguments);
 		return this;
+	}
+
+	public ExchangeBuilder alternate(String exchange) {
+		return withArgument("alternate-exchange", exchange);
 	}
 
 	/**
@@ -176,17 +182,20 @@ public final class ExchangeBuilder extends AbstractBuilder {
 	}
 
 	/**
-	 * Admins, or admin bean names that should declare this exchange.
+	 * Admin instances, or admin bean names that should declare this exchange.
 	 * @param admins the admins.
 	 * @return the builder.
 	 * @since 2.1
 	 */
 	public ExchangeBuilder admins(Object... admins) {
-		this.admins = admins;
+		Assert.notNull(admins, "'admins' cannot be null");
+		Assert.noNullElements(admins, "'admins' can't have null elements");
+		this.declaringAdmins = Arrays.copyOf(admins, admins.length);
 		return this;
 	}
 
-	public Exchange build() {
+	@SuppressWarnings("unchecked")
+	public <T extends Exchange> T build() {
 		AbstractExchange exchange;
 		if (ExchangeTypes.DIRECT.equals(this.type)) {
 			exchange = new DirectExchange(this.name, this.durable, this.autoDelete, getArguments());
@@ -207,10 +216,10 @@ public final class ExchangeBuilder extends AbstractBuilder {
 		exchange.setDelayed(this.delayed);
 		exchange.setIgnoreDeclarationExceptions(this.ignoreDeclarationExceptions);
 		exchange.setShouldDeclare(this.declare);
-		if (!ObjectUtils.isEmpty(this.admins)) {
-			exchange.setAdminsThatShouldDeclare(this.admins);
+		if (!ObjectUtils.isEmpty(this.declaringAdmins)) {
+			exchange.setAdminsThatShouldDeclare(this.declaringAdmins);
 		}
-		return exchange;
+		return (T) exchange;
 	}
 
 }

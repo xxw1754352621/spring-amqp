@@ -1,11 +1,11 @@
 /*
- * Copyright 2016 the original author or authors.
+ * Copyright 2016-2019 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,11 +16,9 @@
 
 package org.springframework.amqp.rabbit.repeatable;
 
-import static org.junit.Assert.assertEquals;
+import static org.assertj.core.api.Assertions.assertThat;
 
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.ExpectedException;
+import org.junit.jupiter.api.Test;
 
 import org.springframework.amqp.rabbit.annotation.RabbitHandler;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
@@ -38,9 +36,6 @@ import org.springframework.stereotype.Component;
  */
 public abstract class AbstractRabbitAnnotationDrivenTests {
 
-	@Rule
-	public final ExpectedException thrown = ExpectedException.none();
-
 	@Test
 	public abstract void rabbitListenerIsRepeatable();
 
@@ -51,27 +46,27 @@ public abstract class AbstractRabbitAnnotationDrivenTests {
 	public void testRabbitListenerRepeatable(ApplicationContext context) {
 		RabbitListenerContainerTestFactory simpleFactory =
 				context.getBean("rabbitListenerContainerFactory", RabbitListenerContainerTestFactory.class);
-		assertEquals(4, simpleFactory.getListenerContainers().size());
+		assertThat(simpleFactory.getListenerContainers()).hasSize(4);
 
 		MethodRabbitListenerEndpoint first = (MethodRabbitListenerEndpoint)
 				simpleFactory.getListenerContainer("first").getEndpoint();
-		assertEquals("first", first.getId());
-		assertEquals("myQueue", first.getQueueNames().iterator().next());
+		assertThat(first.getId()).isEqualTo("first");
+		assertThat(first.getQueueNames().iterator().next()).isEqualTo("myQueue");
 
 		MethodRabbitListenerEndpoint second = (MethodRabbitListenerEndpoint)
 				simpleFactory.getListenerContainer("second").getEndpoint();
-		assertEquals("second", second.getId());
-		assertEquals("anotherQueue", second.getQueueNames().iterator().next());
+		assertThat(second.getId()).isEqualTo("second");
+		assertThat(second.getQueueNames().iterator().next()).isEqualTo("anotherQueue");
 
 		MethodRabbitListenerEndpoint third = (MethodRabbitListenerEndpoint)
 				simpleFactory.getListenerContainer("third").getEndpoint();
-		assertEquals("third", third.getId());
-		assertEquals("class1", third.getQueueNames().iterator().next());
+		assertThat(third.getId()).isEqualTo("third");
+		assertThat(third.getQueueNames().iterator().next()).isEqualTo("class1");
 
 		MethodRabbitListenerEndpoint fourth = (MethodRabbitListenerEndpoint)
 				simpleFactory.getListenerContainer("fourth").getEndpoint();
-		assertEquals("fourth", fourth.getId());
-		assertEquals("class2", fourth.getQueueNames().iterator().next());
+		assertThat(fourth.getId()).isEqualTo("fourth");
+		assertThat(fourth.getQueueNames().iterator().next()).isEqualTo("class2");
 	}
 
 	@Component

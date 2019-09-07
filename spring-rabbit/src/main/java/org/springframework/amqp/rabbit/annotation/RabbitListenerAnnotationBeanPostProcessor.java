@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -17,6 +17,8 @@
 package org.springframework.amqp.rabbit.annotation;
 
 import java.lang.reflect.Method;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -33,6 +35,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
+import org.springframework.amqp.core.AcknowledgeMode;
 import org.springframework.amqp.core.Base64UrlNamingStrategy;
 import org.springframework.amqp.core.Binding;
 import org.springframework.amqp.core.Binding.DestinationType;
@@ -67,6 +70,7 @@ import org.springframework.context.expression.StandardBeanExpressionResolver;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.AnnotationUtils;
 import org.springframework.core.convert.ConversionService;
+import org.springframework.core.convert.converter.Converter;
 import org.springframework.core.convert.support.DefaultConversionService;
 import org.springframework.core.env.Environment;
 import org.springframework.core.task.TaskExecutor;
@@ -153,6 +157,8 @@ public class RabbitListenerAnnotationBeanPostProcessor
 
 	private int increment;
 
+	private Charset charset = StandardCharsets.UTF_8;
+
 	@Override
 	public int getOrder() {
 		return LOWEST_PRECEDENCE;
@@ -219,6 +225,19 @@ public class RabbitListenerAnnotationBeanPostProcessor
 		if (property != null) {
 			this.emptyStringArguments.addAll(StringUtils.commaDelimitedListToSet(property));
 		}
+	}
+
+	/**
+	 * Set a charset for byte[] to String method argument conversion.
+	 * @param charset the charset (default UTF-8).
+	 * @since 2.2
+	 */
+	public void setCharset(Charset charset) {
+		this.charset = charset;
+	}
+
+	MessageHandlerMethodFactory getMessageHandlerMethodFactory() {
+		return this.messageHandlerMethodFactory;
 	}
 
 	@Override
@@ -383,7 +402,7 @@ public class RabbitListenerAnnotationBeanPostProcessor
 						method = iface.getMethod(method.getName(), method.getParameterTypes());
 						break;
 					}
-					catch (NoSuchMethodException noMethod) {
+					catch (@SuppressWarnings("unused") NoSuchMethodException noMethod) {
 					}
 				}
 			}
@@ -452,9 +471,26 @@ public class RabbitListenerAnnotationBeanPostProcessor
 
 		resolveExecutor(endpoint, rabbitListener, target, beanName);
 		resolveAdmin(endpoint, rabbitListener, target);
+		resolveAckMode(endpoint, rabbitListener);
 		RabbitListenerContainerFactory<?> factory = resolveContainerFactory(rabbitListener, target, beanName);
 
 		this.registrar.registerEndpoint(endpoint, factory);
+	}
+
+	private void resolveAckMode(MethodRabbitListenerEndpoint endpoint, RabbitListener rabbitListener) {
+		String ackModeAttr = rabbitListener.ackMode();
+		if (StringUtils.hasText(ackModeAttr)) {
+			Object ackMode = resolveExpression(ackModeAttr);
+			if (ackMode instanceof String) {
+				endpoint.setAckMode(AcknowledgeMode.valueOf((String) ackMode));
+			}
+			else if (ackMode instanceof AcknowledgeMode) {
+				endpoint.setAckMode((AcknowledgeMode) ackMode);
+			}
+			else {
+				Assert.isNull(ackMode, "ackMode must resolve to a String or AcknowledgeMode");
+			}
+		}
 	}
 
 	private void resolveAdmin(MethodRabbitListenerEndpoint endpoint, RabbitListener rabbitListener, Object adminTarget) {
@@ -824,31 +860,35 @@ public class RabbitListenerAnnotationBeanPostProcessor
 	 */
 	private class RabbitHandlerMethodFactoryAdapter implements MessageHandlerMethodFactory {
 
-		private MessageHandlerMethodFactory messageHandlerMethodFactory;
+		private MessageHandlerMethodFactory factory;
 
 		RabbitHandlerMethodFactoryAdapter() {
 			super();
 		}
 
 		public void setMessageHandlerMethodFactory(MessageHandlerMethodFactory rabbitHandlerMethodFactory1) {
-			this.messageHandlerMethodFactory = rabbitHandlerMethodFactory1;
+			this.factory = rabbitHandlerMethodFactory1;
 		}
 
 		@Override
 		public InvocableHandlerMethod createInvocableHandlerMethod(Object bean, Method method) {
-			return getMessageHandlerMethodFactory().createInvocableHandlerMethod(bean, method);
+			return getFactory().createInvocableHandlerMethod(bean, method);
 		}
 
-		private MessageHandlerMethodFactory getMessageHandlerMethodFactory() {
-			if (this.messageHandlerMethodFactory == null) {
-				this.messageHandlerMethodFactory = createDefaultMessageHandlerMethodFactory();
+		private MessageHandlerMethodFactory getFactory() {
+			if (this.factory == null) {
+				this.factory = createDefaultMessageHandlerMethodFactory();
 			}
-			return this.messageHandlerMethodFactory;
+			return this.factory;
 		}
 
 		private MessageHandlerMethodFactory createDefaultMessageHandlerMethodFactory() {
 			DefaultMessageHandlerMethodFactory defaultFactory = new DefaultMessageHandlerMethodFactory();
 			defaultFactory.setBeanFactory(RabbitListenerAnnotationBeanPostProcessor.this.beanFactory);
+			DefaultConversionService conversionService = new DefaultConversionService();
+			conversionService.addConverter(
+					new BytesToStringConverter(RabbitListenerAnnotationBeanPostProcessor.this.charset));
+			defaultFactory.setConversionService(conversionService);
 			defaultFactory.afterPropertiesSet();
 			return defaultFactory;
 		}
@@ -904,6 +944,22 @@ public class RabbitListenerAnnotationBeanPostProcessor
 		ListenerMethod(Method method, RabbitListener[] annotations) { // NOSONAR
 			this.method = method;
 			this.annotations = annotations;
+		}
+
+	}
+
+	private static class BytesToStringConverter implements Converter<byte[], String> {
+
+
+		private final Charset charset;
+
+		BytesToStringConverter(Charset charset) {
+			this.charset = charset;
+		}
+
+		@Override
+		public String convert(byte[] source) {
+			return new String(source, this.charset);
 		}
 
 	}

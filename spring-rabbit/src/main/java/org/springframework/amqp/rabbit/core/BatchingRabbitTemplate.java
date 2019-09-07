@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -21,9 +21,10 @@ import java.util.concurrent.ScheduledFuture;
 
 import org.springframework.amqp.AmqpException;
 import org.springframework.amqp.core.Message;
+import org.springframework.amqp.rabbit.batch.BatchingStrategy;
+import org.springframework.amqp.rabbit.batch.MessageBatch;
+import org.springframework.amqp.rabbit.connection.ConnectionFactory;
 import org.springframework.amqp.rabbit.connection.CorrelationData;
-import org.springframework.amqp.rabbit.core.support.BatchingStrategy;
-import org.springframework.amqp.rabbit.core.support.MessageBatch;
 import org.springframework.scheduling.TaskScheduler;
 
 /**
@@ -48,6 +49,7 @@ public class BatchingRabbitTemplate extends RabbitTemplate {
 	private volatile ScheduledFuture<?> scheduledTask;
 
 	/**
+	 * Create an instance with the supplied parameters.
 	 * @param batchingStrategy the batching strategy.
 	 * @param scheduler the scheduler.
 	 */
@@ -56,9 +58,25 @@ public class BatchingRabbitTemplate extends RabbitTemplate {
 		this.scheduler = scheduler;
 	}
 
+	/**
+	 * Create an instance with the supplied parameters.
+	 * @param connectionFactory the connection factory.
+	 * @param batchingStrategy the batching strategy.
+	 * @param scheduler the scheduler.
+	 * @since 2.2
+	 */
+	public BatchingRabbitTemplate(ConnectionFactory connectionFactory, BatchingStrategy batchingStrategy,
+			TaskScheduler scheduler) {
+
+		super(connectionFactory);
+		this.batchingStrategy = batchingStrategy;
+		this.scheduler = scheduler;
+	}
+
 	@Override
 	public synchronized void send(String exchange, String routingKey, Message message, CorrelationData correlationData)
 			throws AmqpException {
+
 		if (correlationData != null) {
 			if (logger.isDebugEnabled()) {
 				logger.debug("Cannot use batching with correlation data");

@@ -1,11 +1,11 @@
 /*
- * Copyright 2002-2016 the original author or authors.
+ * Copyright 2002-2019 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,15 +16,12 @@
 
 package org.springframework.amqp.rabbit.config;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNotSame;
-import static org.junit.Assert.assertTrue;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.Map;
 
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 
 import org.springframework.amqp.core.AnonymousQueue;
 import org.springframework.amqp.core.Binding;
@@ -50,7 +47,7 @@ public final class RabbitNamespaceHandlerTests {
 
 	private DefaultListableBeanFactory beanFactory;
 
-	@Before
+	@BeforeEach
 	public void setUp() throws Exception {
 		beanFactory = new DefaultListableBeanFactory();
 		XmlBeanDefinitionReader reader = new XmlBeanDefinitionReader(beanFactory);
@@ -60,43 +57,43 @@ public final class RabbitNamespaceHandlerTests {
 	@Test
 	public void testQueue() throws Exception {
 		Queue queue = beanFactory.getBean("foo", Queue.class);
-		assertNotNull(queue);
-		assertEquals("foo", queue.getName());
+		assertThat(queue).isNotNull();
+		assertThat(queue.getName()).isEqualTo("foo");
 	}
 
 	@Test
 	public void testAliasQueue() throws Exception {
 		Queue queue = beanFactory.getBean("bar", Queue.class);
-		assertNotNull(queue);
-		assertEquals("bar", queue.getName());
+		assertThat(queue).isNotNull();
+		assertThat(queue.getName()).isEqualTo("bar");
 	}
 
 	@Test
 	public void testAnonymousQueue() throws Exception {
 		Queue queue = beanFactory.getBean("bucket", Queue.class);
-		assertNotNull(queue);
-		assertNotSame("bucket", queue.getName());
-		assertTrue(queue instanceof AnonymousQueue);
+		assertThat(queue).isNotNull();
+		assertThat(queue.getName()).isNotSameAs("bucket");
+		assertThat(queue instanceof AnonymousQueue).isTrue();
 	}
 
 	@Test
 	public void testExchanges() throws Exception {
-		assertNotNull(beanFactory.getBean("direct-test", DirectExchange.class));
-		assertNotNull(beanFactory.getBean("topic-test", TopicExchange.class));
-		assertNotNull(beanFactory.getBean("fanout-test", FanoutExchange.class));
-		assertNotNull(beanFactory.getBean("headers-test", HeadersExchange.class));
+		assertThat(beanFactory.getBean("direct-test", DirectExchange.class)).isNotNull();
+		assertThat(beanFactory.getBean("topic-test", TopicExchange.class)).isNotNull();
+		assertThat(beanFactory.getBean("fanout-test", FanoutExchange.class)).isNotNull();
+		assertThat(beanFactory.getBean("headers-test", HeadersExchange.class)).isNotNull();
 	}
 
 	@Test
 	public void testBindings() throws Exception {
 		Map<String, Binding> bindings = beanFactory.getBeansOfType(Binding.class);
 		// 4 for each exchange type
-		assertEquals(13, bindings.size());
+		assertThat(bindings).hasSize(13);
 		for (Map.Entry<String, Binding> bindingEntry : bindings.entrySet()) {
 			Binding binding = bindingEntry.getValue();
 			if ("headers-test".equals(binding.getExchange()) && "bucket".equals(binding.getDestination())) {
 				Map<String, Object> arguments = binding.getArguments();
-				assertEquals(3, arguments.size());
+				assertThat(arguments).hasSize(3);
 				break;
 			}
 		}
@@ -104,7 +101,7 @@ public final class RabbitNamespaceHandlerTests {
 
 	@Test
 	public void testAdmin() throws Exception {
-		assertNotNull(beanFactory.getBean("admin-test", RabbitAdmin.class));
+		assertThat(beanFactory.getBean("admin-test", RabbitAdmin.class)).isNotNull();
 	}
 
 }

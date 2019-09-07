@@ -1,11 +1,11 @@
 /*
- * Copyright 2002-2018 the original author or authors.
+ * Copyright 2002-2019 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,8 +16,7 @@
 
 package org.springframework.amqp.rabbit.listener;
 
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertTrue;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
@@ -26,11 +25,12 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-import org.apache.logging.log4j.Level;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.RepeatedTest;
+import org.junit.jupiter.api.RepetitionInfo;
+import org.junit.jupiter.api.TestInstance;
+import org.junit.jupiter.api.TestInstance.Lifecycle;
 
 import org.springframework.amqp.core.AcknowledgeMode;
 import org.springframework.amqp.core.Message;
@@ -38,15 +38,13 @@ import org.springframework.amqp.core.Queue;
 import org.springframework.amqp.rabbit.connection.CachingConnectionFactory;
 import org.springframework.amqp.rabbit.connection.ConnectionFactory;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
-import org.springframework.amqp.rabbit.junit.BrokerRunning;
 import org.springframework.amqp.rabbit.junit.BrokerTestUtils;
+import org.springframework.amqp.rabbit.junit.LogLevels;
+import org.springframework.amqp.rabbit.junit.RabbitAvailable;
 import org.springframework.amqp.rabbit.listener.adapter.MessageListenerAdapter;
 import org.springframework.amqp.rabbit.listener.api.ChannelAwareMessageListener;
 import org.springframework.amqp.rabbit.listener.exception.FatalListenerExecutionException;
-import org.springframework.amqp.rabbit.test.LogLevelAdjuster;
-import org.springframework.amqp.rabbit.test.RepeatProcessor;
 import org.springframework.beans.factory.DisposableBean;
-import org.springframework.test.annotation.Repeat;
 
 import com.rabbitmq.client.Channel;
 
@@ -58,13 +56,19 @@ import com.rabbitmq.client.Channel;
  * @author Gary Russell
  *
  */
+@RabbitAvailable(queues = MessageListenerRecoveryRepeatIntegrationTests.TEST_QUEUE, purgeAfterEach = false)
+@LogLevels(level = "ERROR", classes = { RabbitTemplate.class,
+		ConditionalRejectingErrorHandler.class,
+		SimpleMessageListenerContainer.class, BlockingQueueConsumer.class,
+		MessageListenerRecoveryRepeatIntegrationTests.class })
+@TestInstance(Lifecycle.PER_CLASS)
 public class MessageListenerRecoveryRepeatIntegrationTests {
+
+	public static final String TEST_QUEUE = "test.queue.MessageListenerRecoveryRepeatIntegrationTests";
 
 	private static Log logger = LogFactory.getLog(MessageListenerRecoveryRepeatIntegrationTests.class);
 
-	private final Queue queue = new Queue("test.queue");
-
-	private final Queue sendQueue = new Queue("test.send");
+	private final Queue queue = new Queue(TEST_QUEUE);
 
 	private final int concurrentConsumers = 1;
 
@@ -78,33 +82,22 @@ public class MessageListenerRecoveryRepeatIntegrationTests {
 
 	private SimpleMessageListenerContainer container;
 
-	@Rule
-	public LogLevelAdjuster logLevels = new LogLevelAdjuster(Level.ERROR, RabbitTemplate.class,
-			ConditionalRejectingErrorHandler.class,
-			SimpleMessageListenerContainer.class, BlockingQueueConsumer.class, MessageListenerRecoveryRepeatIntegrationTests.class);
-
-	@Rule
-	public BrokerRunning brokerIsRunning = BrokerRunning.isRunningWithEmptyQueues(queue.getName(), sendQueue.getName());
-
-	@Rule
-	public RepeatProcessor repeatProcessor = new RepeatProcessor();
-
 	private CloseConnectionListener listener;
 
 	private ConnectionFactory connectionFactory;
 
-	@Before
-	public void init() {
-		if (!repeatProcessor.isInitialized()) {
+	@BeforeEach
+	public void init(RepetitionInfo info) {
+		if (info.getCurrentRepetition() == 1) {
 			logger.info("Initializing at start of test");
 			connectionFactory = createConnectionFactory();
 			listener = new CloseConnectionListener();
 		}
 	}
 
-	@After
-	public void clear() throws Exception {
-		if (repeatProcessor.isFinalizing()) {
+	@AfterEach
+	public void clear(RepetitionInfo info) throws Exception {
+		if (info.getCurrentRepetition() == info.getTotalRepetitions()) {
 			// Wait for broker communication to finish before trying to stop container
 			Thread.sleep(300L);
 			logger.info("Shutting down at end of test");
@@ -114,12 +107,10 @@ public class MessageListenerRecoveryRepeatIntegrationTests {
 			if (connectionFactory != null) {
 				((DisposableBean) connectionFactory).destroy();
 			}
-			this.brokerIsRunning.removeTestQueues();
 		}
 	}
 
-	@Test
-	@Repeat(1000)
+	@RepeatedTest(1000)
 	public void testListenerRecoversFromClosedConnection() throws Exception {
 		if (this.container == null) {
 			this.container = createContainer(queue.getName(), listener, connectionFactory);
@@ -138,9 +129,9 @@ public class MessageListenerRecoveryRepeatIntegrationTests {
 		int timeout = Math.min(4 + messageCount / (4 * concurrentConsumers), 30);
 		logger.debug("Waiting for messages with timeout = " + timeout + " (s)");
 		boolean waited = latch.await(timeout, TimeUnit.SECONDS);
-		assertTrue("Timed out waiting for message", waited);
+		assertThat(waited).as("Timed out waiting for message").isTrue();
 
-		assertNull(template.receiveAndConvert(queue.getName()));
+		assertThat(template.receiveAndConvert(queue.getName())).isNull();
 
 	}
 
@@ -158,12 +149,13 @@ public class MessageListenerRecoveryRepeatIntegrationTests {
 		SimpleMessageListenerContainer container = new SimpleMessageListenerContainer(connectionFactory);
 		container.setMessageListener(new MessageListenerAdapter(listener));
 		container.setQueueNames(queueName);
-		container.setTxSize(txSize);
+		container.setBatchSize(txSize);
 		container.setPrefetchCount(txSize);
 		container.setConcurrentConsumers(concurrentConsumers);
 		container.setChannelTransacted(transactional);
 		container.setAcknowledgeMode(acknowledgeMode);
 		container.setTaskExecutor(Executors.newFixedThreadPool(concurrentConsumers));
+		container.setReceiveTimeout(100L);
 		container.afterPropertiesSet();
 		container.start();
 		return container;

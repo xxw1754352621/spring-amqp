@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,11 +16,8 @@
 
 package org.springframework.amqp.rabbit.connection;
 
-import static org.hamcrest.Matchers.allOf;
-import static org.hamcrest.Matchers.containsString;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertThat;
-import static org.junit.Assert.fail;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.fail;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
@@ -32,8 +29,8 @@ import java.util.Collections;
 import javax.net.ssl.SSLContext;
 
 import org.apache.commons.logging.Log;
-import org.junit.Ignore;
-import org.junit.Test;
+import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
@@ -58,7 +55,7 @@ import com.rabbitmq.client.ConnectionFactory;
 public class SSLConnectionTests {
 
 	@Test
-	@Ignore
+	@Disabled
 	public void test() throws Exception {
 		RabbitConnectionFactoryBean fb = new RabbitConnectionFactoryBean();
 		fb.setUseSSL(true);
@@ -66,7 +63,7 @@ public class SSLConnectionTests {
 		fb.setClientProperties(Collections.<String, Object>singletonMap("foo", "bar"));
 		fb.afterPropertiesSet();
 		ConnectionFactory cf = fb.getObject();
-		assertEquals("bar", cf.getClientProperties().get("foo"));
+		assertThat(cf.getClientProperties().get("foo")).isEqualTo("bar");
 		Connection conn = cf.newConnection();
 		Channel chan = conn.createChannel();
 		chan.close();
@@ -166,7 +163,7 @@ public class SSLConnectionTests {
 		ArgumentCaptor<String> captor = ArgumentCaptor.forClass(String.class);
 		verify(logger).debug(captor.capture());
 		final String log = captor.getValue();
-		assertThat(log, allOf(containsString("KM: ["), containsString("TM: ["), containsString("random: ")));
+		assertThat(log).contains("KM: [").contains("TM: [").contains("random: ");
 	}
 
 	@Test
@@ -184,7 +181,7 @@ public class SSLConnectionTests {
 		ArgumentCaptor<String> captor = ArgumentCaptor.forClass(String.class);
 		verify(logger).debug(captor.capture());
 		final String log = captor.getValue();
-		assertThat(log, allOf(containsString("KM: ["), containsString("TM: null"), containsString("random: null")));
+		assertThat(log).contains("KM: [").contains("TM: null").contains("random: null");
 	}
 
 	@Test
@@ -202,14 +199,14 @@ public class SSLConnectionTests {
 		ArgumentCaptor<String> captor = ArgumentCaptor.forClass(String.class);
 		verify(logger).debug(captor.capture());
 		final String log = captor.getValue();
-		assertThat(log, allOf(containsString("KM: null"), containsString("TM: ["), containsString("random: null")));
+		assertThat(log).contains("KM: null").contains("TM: [").contains("random: null");
 	}
 
 	@Test
 	public void testTypeDefault() {
 		RabbitConnectionFactoryBean fb = new RabbitConnectionFactoryBean();
-		assertEquals("PKCS12", fb.getKeyStoreType());
-		assertEquals("JKS", fb.getTrustStoreType());
+		assertThat(fb.getKeyStoreType()).isEqualTo("PKCS12");
+		assertThat(fb.getTrustStoreType()).isEqualTo("JKS");
 	}
 
 	@Test
@@ -224,8 +221,8 @@ public class SSLConnectionTests {
 			fail("setupSSL should fail");
 		}
 		catch (Exception e) {
-			assertEquals("foo", fb.getKeyStoreType());
-			assertEquals("bar", fb.getTrustStoreType());
+			assertThat(fb.getKeyStoreType()).isEqualTo("foo");
+			assertThat(fb.getTrustStoreType()).isEqualTo("bar");
 		}
 	}
 
@@ -234,8 +231,8 @@ public class SSLConnectionTests {
 		RabbitConnectionFactoryBean fb = new RabbitConnectionFactoryBean();
 		fb.setKeyStoreType("alice");
 		fb.setTrustStoreType("bob");
-		assertEquals("alice", fb.getKeyStoreType());
-		assertEquals("bob", fb.getTrustStoreType());
+		assertThat(fb.getKeyStoreType()).isEqualTo("alice");
+		assertThat(fb.getTrustStoreType()).isEqualTo("bob");
 	}
 
 	@Test
@@ -252,8 +249,8 @@ public class SSLConnectionTests {
 			fail("setupSSL should fail");
 		}
 		catch (Exception e) {
-			assertEquals("alice", fb.getKeyStoreType());
-			assertEquals("bob", fb.getTrustStoreType());
+			assertThat(fb.getKeyStoreType()).isEqualTo("alice");
+			assertThat(fb.getTrustStoreType()).isEqualTo("bob");
 		}
 	}
 

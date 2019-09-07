@@ -1,11 +1,11 @@
 /*
- * Copyright 2016 the original author or authors.
+ * Copyright 2016-2019 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,16 +16,12 @@
 
 package org.springframework.amqp.core;
 
-import static org.hamcrest.Matchers.hasEntry;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertThat;
-import static org.junit.Assert.assertTrue;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.HashMap;
 import java.util.Map;
 
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 /**
  * Tests for {@link QueueBuilder}
@@ -39,30 +35,30 @@ public class QueueBuilderTests {
 	public void buildsDurableQueue() {
 		Queue queue = QueueBuilder.durable("name").build();
 
-		assertTrue(queue.isDurable());
-		assertEquals("name", queue.getName());
+		assertThat(queue.isDurable()).isTrue();
+		assertThat(queue.getName()).isEqualTo("name");
 	}
 
 	@Test
 	public void buildsNonDurableQueue() {
 		Queue queue = QueueBuilder.nonDurable("name").build();
 
-		assertFalse(queue.isDurable());
-		assertEquals("name", queue.getName());
+		assertThat(queue.isDurable()).isFalse();
+		assertThat(queue.getName()).isEqualTo("name");
 	}
 
 	@Test
 	public void buildsAutoDeleteQueue() {
 		Queue queue = QueueBuilder.durable("name").autoDelete().build();
 
-		assertTrue(queue.isAutoDelete());
+		assertThat(queue.isAutoDelete()).isTrue();
 	}
 
 	@Test
 	public void buildsExclusiveQueue() {
 		Queue queue = QueueBuilder.durable("name").exclusive().build();
 
-		assertTrue(queue.isExclusive());
+		assertThat(queue.isExclusive()).isTrue();
 	}
 
 	@Test
@@ -72,8 +68,8 @@ public class QueueBuilderTests {
 				.withArgument("key2", "value2")
 				.build();
 
-		assertThat(queue.getArguments(), hasEntry("key1", (Object) "value1"));
-		assertThat(queue.getArguments(), hasEntry("key2", (Object) "value2"));
+		assertThat(queue.getArguments()).containsEntry("key1", "value1");
+		assertThat(queue.getArguments()).containsEntry("key2", "value2");
 	}
 
 	@Test
@@ -84,8 +80,8 @@ public class QueueBuilderTests {
 
 		Queue queue = QueueBuilder.durable("name").withArguments(arguments).build();
 
-		assertThat(queue.getArguments(), hasEntry("key1", (Object) "value1"));
-		assertThat(queue.getArguments(), hasEntry("key2", (Object) "value2"));
+		assertThat(queue.getArguments()).containsEntry("key1", "value1");
+		assertThat(queue.getArguments()).containsEntry("key2", "value2");
 	}
 
 }

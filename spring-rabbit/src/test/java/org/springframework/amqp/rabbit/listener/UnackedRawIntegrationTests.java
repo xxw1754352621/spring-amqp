@@ -1,11 +1,11 @@
 /*
- * Copyright 2002-2018 the original author or authors.
+ * Copyright 2002-2019 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,17 +16,17 @@
 
 package org.springframework.amqp.rabbit.listener;
 
-import static org.junit.Assert.assertNotNull;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.IOException;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Ignore;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.Test;
 
 import org.springframework.amqp.rabbit.junit.BrokerTestUtils;
 import org.springframework.amqp.rabbit.support.Delivery;
@@ -45,7 +45,7 @@ import com.rabbitmq.client.GetResponse;
  * @author Dave Syer
  *
  */
-@Ignore
+@Disabled
 public class UnackedRawIntegrationTests {
 
 	private final ConnectionFactory factory = new ConnectionFactory();
@@ -53,7 +53,7 @@ public class UnackedRawIntegrationTests {
 	private Channel noTxChannel;
 	private Channel txChannel;
 
-	@Before
+	@BeforeEach
 	public void init() throws Exception {
 
 		factory.setHost("localhost");
@@ -74,7 +74,7 @@ public class UnackedRawIntegrationTests {
 
 	}
 
-	@After
+	@AfterEach
 	public void clear() throws Exception {
 		if (txChannel != null) {
 			try {
@@ -103,12 +103,12 @@ public class UnackedRawIntegrationTests {
 		BlockingConsumer callback = new BlockingConsumer(txChannel);
 		txChannel.basicConsume("test.queue", callback);
 		Delivery next = callback.nextDelivery(10_000L);
-		assertNotNull(next);
+		assertThat(next).isNotNull();
 		txChannel.basicReject(next.getEnvelope().getDeliveryTag(), true);
 		txChannel.txRollback();
 
 		GetResponse get = noTxChannel.basicGet("test.queue", true);
-		assertNotNull(get);
+		assertThat(get).isNotNull();
 
 	}
 
@@ -123,12 +123,12 @@ public class UnackedRawIntegrationTests {
 		BlockingConsumer callback = new BlockingConsumer(txChannel);
 		txChannel.basicConsume("test.queue", callback);
 		Delivery next = callback.nextDelivery(10_000L);
-		assertNotNull(next);
+		assertThat(next).isNotNull();
 		txChannel.basicReject(next.getEnvelope().getDeliveryTag(), true);
 		txChannel.txRollback();
 
 		GetResponse get = noTxChannel.basicGet("test.queue", true);
-		assertNotNull(get);
+		assertThat(get).isNotNull();
 
 	}
 

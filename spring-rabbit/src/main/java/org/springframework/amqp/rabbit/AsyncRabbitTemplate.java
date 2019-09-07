@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -48,6 +48,7 @@ import org.springframework.amqp.rabbit.listener.SimpleMessageListenerContainer;
 import org.springframework.amqp.rabbit.listener.api.ChannelAwareMessageListener;
 import org.springframework.amqp.support.converter.MessageConverter;
 import org.springframework.amqp.support.converter.SmartMessageConverter;
+import org.springframework.amqp.utils.JavaUtils;
 import org.springframework.beans.factory.BeanNameAware;
 import org.springframework.context.SmartLifecycle;
 import org.springframework.core.ParameterizedTypeReference;
@@ -157,6 +158,10 @@ public class AsyncRabbitTemplate implements AsyncAmqpTemplate, ChannelAwareMessa
 		this.template.setExchange(exchange == null ? "" : exchange);
 		this.template.setRoutingKey(routingKey);
 		this.container = new SimpleMessageListenerContainer(connectionFactory);
+		JavaUtils.INSTANCE
+				.acceptIfNotNull(this.template.getAfterReceivePostProcessors(),
+						(value) -> this.container.setAfterReceivePostProcessors(
+								value.toArray(new MessagePostProcessor[0])));
 		this.container.setQueueNames(replyQueue);
 		this.container.setMessageListener(this);
 		this.container.afterPropertiesSet();
@@ -216,15 +221,10 @@ public class AsyncRabbitTemplate implements AsyncAmqpTemplate, ChannelAwareMessa
 	 * @since 2.0
 	 */
 	public AsyncRabbitTemplate(ConnectionFactory connectionFactory, String exchange, String routingKey) {
-		Assert.notNull(connectionFactory, "'connectionFactory' cannot be null");
+		this(new RabbitTemplate(connectionFactory));
 		Assert.notNull(routingKey, "'routingKey' cannot be null");
-		this.template = new RabbitTemplate(connectionFactory);
 		this.template.setExchange(exchange == null ? "" : exchange);
 		this.template.setRoutingKey(routingKey);
-		this.container = null;
-		this.replyAddress = null;
-		this.directReplyToContainer = new DirectReplyToMessageListenerContainer(this.template.getConnectionFactory());
-		this.directReplyToContainer.setMessageListener(this);
 	}
 
 	/**
@@ -239,6 +239,10 @@ public class AsyncRabbitTemplate implements AsyncAmqpTemplate, ChannelAwareMessa
 		this.container = null;
 		this.replyAddress = null;
 		this.directReplyToContainer = new DirectReplyToMessageListenerContainer(this.template.getConnectionFactory());
+		JavaUtils.INSTANCE
+				.acceptIfNotNull(template.getAfterReceivePostProcessors(),
+						(value) -> this.directReplyToContainer.setAfterReceivePostProcessors(
+								value.toArray(new MessagePostProcessor[0])));
 		this.directReplyToContainer.setMessageListener(this);
 	}
 
@@ -346,6 +350,15 @@ public class AsyncRabbitTemplate implements AsyncAmqpTemplate, ChannelAwareMessa
 	 */
 	public MessageConverter getMessageConverter() {
 		return this.template.getMessageConverter();
+	}
+
+	/**
+	 * Return the underlying {@link RabbitTemplate} used for sending.
+	 * @return the template.
+	 * @since 2.2
+	 */
+	public RabbitTemplate getRabbitTemplate() {
+		return this.template;
 	}
 
 	@Override
@@ -550,12 +563,6 @@ public class AsyncRabbitTemplate implements AsyncAmqpTemplate, ChannelAwareMessa
 		return this.autoStartup;
 	}
 
-	@Override
-	public void stop(Runnable callback) {
-		stop();
-		callback.run();
-	}
-
 	@SuppressWarnings("unchecked")
 	@Override
 	public void onMessage(Message message, Channel channel) {
@@ -573,9 +580,9 @@ public class AsyncRabbitTemplate implements AsyncAmqpTemplate, ChannelAwareMessa
 						RabbitConverterFuture<Object> rabbitFuture = (RabbitConverterFuture<Object>) future;
 						Object converted = rabbitFuture.getReturnType() != null
 								&& messageConverter instanceof SmartMessageConverter
-										? ((SmartMessageConverter) messageConverter).fromMessage(message,
-												rabbitFuture.getReturnType())
-										: messageConverter.fromMessage(message);
+								? ((SmartMessageConverter) messageConverter).fromMessage(message,
+								rabbitFuture.getReturnType())
+								: messageConverter.fromMessage(message);
 						rabbitFuture.set(converted);
 					}
 					else {
@@ -689,7 +696,8 @@ public class AsyncRabbitTemplate implements AsyncAmqpTemplate, ChannelAwareMessa
 			}
 			AsyncRabbitTemplate.this.pending.remove(this.correlationId);
 			if (this.channelHolder != null && AsyncRabbitTemplate.this.directReplyToContainer != null) {
-				AsyncRabbitTemplate.this.directReplyToContainer.releaseConsumerFor(this.channelHolder, false, null); // NOSONAR
+				AsyncRabbitTemplate.this.directReplyToContainer
+						.releaseConsumerFor(this.channelHolder, false, null); // NOSONAR
 			}
 			return super.cancel(mayInterruptIfRunning);
 		}

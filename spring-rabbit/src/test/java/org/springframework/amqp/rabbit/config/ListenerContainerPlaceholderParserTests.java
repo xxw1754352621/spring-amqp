@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,16 +16,15 @@
 
 package org.springframework.amqp.rabbit.config;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.Arrays;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ThreadPoolExecutor;
 
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 
 import org.springframework.amqp.core.AcknowledgeMode;
 import org.springframework.amqp.core.Queue;
@@ -50,13 +49,13 @@ public final class ListenerContainerPlaceholderParserTests {
 
 	private GenericApplicationContext context;
 
-	@Before
+	@BeforeEach
 	public void setUp() {
 		this.context = new GenericXmlApplicationContext(
 				new ClassPathResource(getClass().getSimpleName() + "-context.xml", getClass()));
 	}
 
-	@After
+	@AfterEach
 	public void closeBeanFactory() throws Exception {
 		if (this.context != null) {
 			CachingConnectionFactory cf = this.context.getBean(CachingConnectionFactory.class);
@@ -64,7 +63,7 @@ public final class ListenerContainerPlaceholderParserTests {
 			ExecutorService es = TestUtils.getPropertyValue(cf, "channelsExecutor", ThreadPoolExecutor.class);
 			if (es != null) {
 				// if it gets started make sure its terminated..
-				assertTrue(es.isTerminated());
+				assertThat(es.isTerminated()).isTrue();
 			}
 		}
 	}
@@ -73,14 +72,14 @@ public final class ListenerContainerPlaceholderParserTests {
 	public void testParseWithQueueNames() throws Exception {
 		SimpleMessageListenerContainer container =
 				this.context.getBean("testListener", SimpleMessageListenerContainer.class);
-		assertEquals(AcknowledgeMode.MANUAL, container.getAcknowledgeMode());
-		assertEquals(this.context.getBean(ConnectionFactory.class), container.getConnectionFactory());
-		assertEquals(MessageListenerAdapter.class, container.getMessageListener().getClass());
+		assertThat(container.getAcknowledgeMode()).isEqualTo(AcknowledgeMode.MANUAL);
+		assertThat(container.getConnectionFactory()).isEqualTo(this.context.getBean(ConnectionFactory.class));
+		assertThat(container.getMessageListener().getClass()).isEqualTo(MessageListenerAdapter.class);
 		DirectFieldAccessor listenerAccessor = new DirectFieldAccessor(container.getMessageListener());
-		assertEquals(this.context.getBean(TestBean.class), listenerAccessor.getPropertyValue("delegate"));
-		assertEquals("handle", listenerAccessor.getPropertyValue("defaultListenerMethod"));
+		assertThat(listenerAccessor.getPropertyValue("delegate")).isEqualTo(this.context.getBean(TestBean.class));
+		assertThat(listenerAccessor.getPropertyValue("defaultListenerMethod")).isEqualTo("handle");
 		Queue queue = this.context.getBean("bar", Queue.class);
-		assertEquals("[foo, " + queue.getName() + "]", Arrays.asList(container.getQueueNames()).toString());
+		assertThat(Arrays.asList(container.getQueueNames()).toString()).isEqualTo("[foo, " + queue.getName() + "]");
 	}
 
 }

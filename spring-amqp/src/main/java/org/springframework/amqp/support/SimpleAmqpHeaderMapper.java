@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -163,6 +163,7 @@ public class SimpleAmqpHeaderMapper extends AbstractHeaderMapper<MessageProperti
 							putString)
 					.acceptIfHasText(AmqpHeaders.CONSUMER_TAG, amqpMessageProperties.getConsumerTag(), putString)
 					.acceptIfHasText(AmqpHeaders.CONSUMER_QUEUE, amqpMessageProperties.getConsumerQueue(), putString);
+			headers.put(AmqpHeaders.LAST_IN_BATCH, amqpMessageProperties.isLastInBatch());
 
 			// Map custom headers
 			for (Map.Entry<String, Object> entry : amqpMessageProperties.getHeaders().entrySet()) {

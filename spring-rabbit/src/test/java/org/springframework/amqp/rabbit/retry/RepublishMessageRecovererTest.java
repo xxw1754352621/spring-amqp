@@ -1,11 +1,11 @@
 /*
- * Copyright 2014-2017 the original author or authors.
+ * Copyright 2014-2019 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,18 +16,18 @@
 
 package org.springframework.amqp.rabbit.retry;
 
-import static org.junit.Assert.assertEquals;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.verify;
 
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
 import java.util.Map;
 
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.runner.RunWith;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
-import org.mockito.junit.MockitoJUnitRunner;
+import org.mockito.junit.jupiter.MockitoExtension;
 
 import org.springframework.amqp.core.AmqpTemplate;
 import org.springframework.amqp.core.Message;
@@ -41,7 +41,7 @@ import org.springframework.amqp.core.MessageProperties;
  *
  * @since 1.3
  */
-@RunWith(MockitoJUnitRunner.class)
+@ExtendWith(MockitoExtension.class)
 public class RepublishMessageRecovererTest {
 
 	private final Message message = new Message("".getBytes(), new MessageProperties());
@@ -53,7 +53,7 @@ public class RepublishMessageRecovererTest {
 
 	private RepublishMessageRecoverer recoverer;
 
-	@Before
+	@BeforeEach
 	public void beforeEach() {
 		message.getMessageProperties().setReceivedRoutingKey("some.key");
 	}
@@ -92,7 +92,7 @@ public class RepublishMessageRecovererTest {
 
 		recoverer.recover(message, cause);
 
-		assertEquals(expectedHeaderValue, message.getMessageProperties().getHeaders().get("x-exception-stacktrace"));
+		assertThat(message.getMessageProperties().getHeaders().get("x-exception-stacktrace")).isEqualTo(expectedHeaderValue);
 	}
 
 	@Test
@@ -100,8 +100,7 @@ public class RepublishMessageRecovererTest {
 		recoverer = new RepublishMessageRecoverer(amqpTemplate);
 		recoverer.recover(message, cause);
 
-		assertEquals(cause.getCause().getMessage(),
-				message.getMessageProperties().getHeaders().get("x-exception-message"));
+		assertThat(message.getMessageProperties().getHeaders().get("x-exception-message")).isEqualTo(cause.getCause().getMessage());
 	}
 
 	@Test
@@ -111,8 +110,7 @@ public class RepublishMessageRecovererTest {
 
 		recoverer.recover(message, cause);
 
-		assertEquals("the.original.exchange",
-				message.getMessageProperties().getHeaders().get("x-original-exchange"));
+		assertThat(message.getMessageProperties().getHeaders().get("x-original-exchange")).isEqualTo("the.original.exchange");
 	}
 
 	@Test
@@ -121,6 +119,7 @@ public class RepublishMessageRecovererTest {
 		message.getMessageProperties().setReceivedDeliveryMode(MessageDeliveryMode.PERSISTENT);
 		recoverer = new RepublishMessageRecoverer(amqpTemplate, "error") {
 
+			@Override
 			protected Map<? extends String, ? extends Object> additionalHeaders(Message message, Throwable cause) {
 				message.getMessageProperties().setDeliveryMode(message.getMessageProperties().getReceivedDeliveryMode());
 				return null;
@@ -130,7 +129,7 @@ public class RepublishMessageRecovererTest {
 
 		recoverer.recover(message, cause);
 
-		assertEquals(MessageDeliveryMode.PERSISTENT, message.getMessageProperties().getDeliveryMode());
+		assertThat(message.getMessageProperties().getDeliveryMode()).isEqualTo(MessageDeliveryMode.PERSISTENT);
 	}
 
 	@Test
@@ -141,7 +140,7 @@ public class RepublishMessageRecovererTest {
 		this.recoverer.setDeliveryMode(MessageDeliveryMode.NON_PERSISTENT);
 		recoverer.recover(this.message, this.cause);
 
-		assertEquals(MessageDeliveryMode.NON_PERSISTENT, this.message.getMessageProperties().getDeliveryMode());
+		assertThat(this.message.getMessageProperties().getDeliveryMode()).isEqualTo(MessageDeliveryMode.NON_PERSISTENT);
 	}
 
 }

@@ -1,11 +1,11 @@
 /*
- * Copyright 2002-2016 the original author or authors.
+ * Copyright 2002-2019 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -14,9 +14,10 @@
  * limitations under the License.
  */
 
-package org.springframework.amqp.rabbit.test;
+package org.springframework.amqp.rabbit.junit;
 
-import static org.junit.Assert.assertTrue;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.fail;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -29,9 +30,7 @@ import java.util.concurrent.Future;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-import org.hamcrest.CoreMatchers;
 import org.junit.After;
-import org.junit.Assert;
 import org.junit.Before;
 import org.junit.internal.runners.statements.RunAfters;
 import org.junit.internal.runners.statements.RunBefores;
@@ -47,13 +46,15 @@ import org.springframework.test.annotation.Repeat;
  * A JUnit method &#064;Rule that looks at Spring repeat annotations on methods and executes the test multiple times
  * (without re-initializing the test case if necessary). To avoid re-initializing use the {@link #isInitialized()}
  * method to protect the &#64;Before and &#64;After methods.
+ * @deprecated in favor of JUnit 5 {@link org.junit.jupiter.api.RepeatedTest}.
  *
  * @author Dave Syer
  *
  */
+@Deprecated
 public class RepeatProcessor implements MethodRule {
 
-	private static final Log logger = LogFactory.getLog(RepeatProcessor.class);
+	private static final Log LOGGER = LogFactory.getLog(RepeatProcessor.class);
 
 	private final int concurrency;
 
@@ -69,6 +70,7 @@ public class RepeatProcessor implements MethodRule {
 		this.concurrency = concurrency < 0 ? 0 : concurrency;
 	}
 
+	@Override
 	public Statement apply(final Statement base, FrameworkMethod method, final Object target) {
 
 		Repeat repeat = AnnotationUtils.findAnnotation(method.getMethod(), Repeat.class);
@@ -83,7 +85,7 @@ public class RepeatProcessor implements MethodRule {
 
 		initializeIfNecessary(target);
 
-		if (concurrency <= 0) {
+		if (this.concurrency <= 0) {
 			return new Statement() {
 				@Override
 				public void evaluate() throws Throwable {
@@ -92,8 +94,9 @@ public class RepeatProcessor implements MethodRule {
 							try {
 								base.evaluate();
 							}
-							catch (Throwable t) {
-								throw new IllegalStateException("Failed on iteration: " + i + " of " + repeats + " (started at 0)", t);
+							catch (Throwable t) { // NOSONAR
+								throw new IllegalStateException(
+										"Failed on iteration: " + i + " of " + repeats + " (started at 0)", t);
 							}
 						}
 					}
@@ -103,21 +106,22 @@ public class RepeatProcessor implements MethodRule {
 				}
 			};
 		}
-		return new Statement() {
+		return new Statement() { // NOSONAR
 			@Override
 			public void evaluate() throws Throwable {
 				List<Future<Boolean>> results = new ArrayList<Future<Boolean>>();
-				ExecutorService executor = Executors.newFixedThreadPool(concurrency);
+				ExecutorService executor = Executors.newFixedThreadPool(RepeatProcessor.this.concurrency);
 				CompletionService<Boolean> completionService = new ExecutorCompletionService<Boolean>(executor);
 				try {
 					for (int i = 0; i < repeats; i++) {
 						final int count = i;
 						results.add(completionService.submit(new Callable<Boolean>() {
+							@Override
 							public Boolean call() {
 								try {
 									base.evaluate();
 								}
-								catch (Throwable t) {
+								catch (Throwable t) { // NOSONAR
 									throw new IllegalStateException("Failed on iteration: " + count, t);
 								}
 								return true;
@@ -126,7 +130,7 @@ public class RepeatProcessor implements MethodRule {
 					}
 					for (int i = 0; i < repeats; i++) {
 						Future<Boolean> future = completionService.take();
-						assertTrue("Null result from completer", future.get());
+						assertThat(future.get()).as("Null result from completer").isTrue();
 					}
 				}
 				finally {
@@ -138,11 +142,11 @@ public class RepeatProcessor implements MethodRule {
 	}
 
 	private void finalizeIfNecessary(Object target) {
-		finalizing = true;
+		this.finalizing = true;
 		List<FrameworkMethod> afters = new TestClass(target.getClass()).getAnnotatedMethods(After.class);
 		try {
 			if (!afters.isEmpty()) {
-				logger.debug("Running @After methods");
+				LOGGER.debug("Running @After methods");
 				try {
 					new RunAfters(new Statement() {
 						@Override
@@ -150,13 +154,13 @@ public class RepeatProcessor implements MethodRule {
 						}
 					}, afters, target).evaluate();
 				}
-				catch (Throwable e) {
-					Assert.assertThat(e, CoreMatchers.not(CoreMatchers.anything()));
+				catch (Throwable e) { // NOSONAR
+					fail("Unexpected throwable " + e);
 				}
 			}
 		}
 		finally {
-			finalizing = false;
+			this.finalizing = false;
 		}
 	}
 
@@ -164,7 +168,7 @@ public class RepeatProcessor implements MethodRule {
 		TestClass testClass = new TestClass(target.getClass());
 		List<FrameworkMethod> befores = testClass.getAnnotatedMethods(Before.class);
 		if (!befores.isEmpty()) {
-			logger.debug("Running @Before methods");
+			LOGGER.debug("Running @Before methods");
 			try {
 				new RunBefores(new Statement() {
 					@Override
@@ -172,25 +176,26 @@ public class RepeatProcessor implements MethodRule {
 					}
 				}, befores, target).evaluate();
 			}
-			catch (Throwable e) {
-				Assert.assertThat(e, CoreMatchers.not(CoreMatchers.anything()));
+			catch (Throwable e) { // NOSONAR
+				fail("Unexpected throwable " + e);
 			}
-			initialized = true;
+			this.initialized = true;
 		}
 		if (!testClass.getAnnotatedMethods(After.class).isEmpty()) {
-			initialized = true;
+			this.initialized = true;
 		}
 	}
 
 	public boolean isInitialized() {
-		return initialized;
+		return this.initialized;
 	}
 
 	public boolean isFinalizing() {
-		return finalizing;
+		return this.finalizing;
 	}
 
 	public int getConcurrency() {
-		return concurrency > 0 ? concurrency : 1;
+		return this.concurrency > 0 ? this.concurrency : 1;
 	}
+
 }

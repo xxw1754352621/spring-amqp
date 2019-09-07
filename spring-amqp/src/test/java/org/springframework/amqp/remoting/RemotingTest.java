@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,16 +16,13 @@
 
 package org.springframework.amqp.remoting;
 
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.instanceOf;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertThat;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 
 import org.springframework.amqp.AmqpException;
 import org.springframework.amqp.core.Address;
@@ -62,7 +59,7 @@ public class RemotingTest {
 	 * Set up a rig of directly wired-up proxy and service listener so that both can be tested together without needing
 	 * a running rabbit.
 	 */
-	@Before
+	@BeforeEach
 	public void initializeTestRig() {
 		// Set up the service
 		TestServiceInterface testService = new TestServiceImpl();
@@ -104,7 +101,7 @@ public class RemotingTest {
 
 	@Test
 	public void testEcho() {
-		assertEquals("Echo Test", riggedProxy.simpleStringReturningTestMethod("Test"));
+		assertThat(riggedProxy.simpleStringReturningTestMethod("Test")).isEqualTo("Echo Test");
 	}
 
 	@Test
@@ -113,25 +110,25 @@ public class RemotingTest {
 			this.riggedProxy.simulatedTimeoutMethod("timeout");
 		}
 		catch (RemoteProxyFailureException e) {
-			assertThat(e.getMessage(), containsString("'simulatedTimeoutMethod' with arguments '[timeout]'"));
+			assertThat(e.getMessage()).contains("'simulatedTimeoutMethod' with arguments '[timeout]'");
 		}
 	}
 
-	@Test(expected = RuntimeException.class)
+	@Test
 	public void testExceptionPropagation() {
-		riggedProxy.exceptionThrowingMethod();
+		assertThatExceptionOfType(AmqpException.class).isThrownBy(() -> riggedProxy.exceptionThrowingMethod());
 	}
 
-	@Test(expected = GeneralException.class)
-	@SuppressWarnings("ThrowableResultOfMethodCallIgnored")
+	@Test
 	public void testExceptionReturningMethod() {
-		riggedProxy.notReallyExceptionReturningMethod();
+		assertThatExceptionOfType(GeneralException.class)
+				.isThrownBy(() -> riggedProxy.notReallyExceptionReturningMethod());
 	}
 
 	@Test
 	public void testActuallyExceptionReturningMethod() {
 		SpecialException returnedException = riggedProxy.actuallyExceptionReturningMethod();
-		assertNotNull(returnedException);
+		assertThat(returnedException).isNotNull();
 	}
 
 	@Test
@@ -157,8 +154,8 @@ public class RemotingTest {
 			riggedProxy.simpleStringReturningTestMethod("Test");
 		}
 		catch (Exception e) {
-			assertThat(e, instanceOf(IllegalArgumentException.class));
-			assertThat(e.getMessage(), containsString("The message does not contain a RemoteInvocation payload"));
+			assertThat(e).isInstanceOf(IllegalArgumentException.class);
+			assertThat(e.getMessage()).contains("The message does not contain a RemoteInvocation payload");
 		}
 
 		this.serviceExporter.setMessageConverter(messageConverter);

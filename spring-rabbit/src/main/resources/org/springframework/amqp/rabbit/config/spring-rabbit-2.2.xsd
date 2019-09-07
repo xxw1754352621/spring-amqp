@@ -1069,6 +1069,19 @@
 					<xsd:union memberTypes="xsd:boolean xsd:string" />
 				</xsd:simpleType>
 			</xsd:attribute>
+			<xsd:attribute name="explicit-declarations-only" default="false">
+				<xsd:annotation>
+					<xsd:documentation><![CDATA[
+	If automatic declaration is enabled (see 'auto-startup'), if this is set to 'true', only beans
+	(queues, exchanges, bindings) that are explicity configured to be declared by this admin (see
+	'declared-by') will be declared.
+	Default value is 'false' which means all beans with no explicit 'declared-by' will be declared.
+					]]></xsd:documentation>
+				</xsd:annotation>
+				<xsd:simpleType>
+					<xsd:union memberTypes="xsd:boolean xsd:string" />
+				</xsd:simpleType>
+			</xsd:attribute>
 		</xsd:complexType>
 	</xsd:element>
 
@@ -1226,7 +1239,7 @@
 					<xsd:documentation><![CDATA[
 	When 'true', instructs the template to use a temporary, exclusive, auto-delete queue for
 	each 'sendAndReceive'. By default, when there is no 'reply-address', the template will
-	use Direct reply-to ('http://www.rabbitmq.com/direct-reply-to.html') when the broker supports it.
+	use Direct reply-to ('https://www.rabbitmq.com/direct-reply-to.html') when the broker supports it.
 	This flag overrides that behavior; it is ignored if a 'reply-address' is provided.
 	Defaults to 'false'.
 					]]></xsd:documentation>
@@ -1384,6 +1397,14 @@
 				<xsd:annotation>
 					<xsd:documentation><![CDATA[
 	List of addresses; e.g. host1,host2:4567,host3 - overrides host/port if supplied.
+	Connection will be attempted in order unless 'shuffle-addresses' is 'true'.
+					]]></xsd:documentation>
+				</xsd:annotation>
+			</xsd:attribute>
+			<xsd:attribute name="shuffle-addresses" type="xsd:string" use="optional">
+				<xsd:annotation>
+					<xsd:documentation><![CDATA[
+	Set to true when 'addresses' has more than one address to shuffle the list into a random order.
 					]]></xsd:documentation>
 				</xsd:annotation>
 			</xsd:attribute>
@@ -1446,9 +1467,20 @@
 			<xsd:attribute name="publisher-confirms" type="xsd:string" use="optional">
 				<xsd:annotation>
 					<xsd:documentation><![CDATA[
-	When true, channels on connections created by this factory support publisher confirms.
+	When true, channels on connections created by this factory support correlated publisher confirms.
+	DEPRECATED in favor of 'confirm-type'.
 					]]></xsd:documentation>
 				</xsd:annotation>
+			</xsd:attribute>
+			<xsd:attribute name="confirm-type" use="optional">
+				<xsd:annotation>
+					<xsd:documentation><![CDATA[
+	The type of publisher confirmation to use, or NONE to disable.
+					]]></xsd:documentation>
+				</xsd:annotation>
+				<xsd:simpleType>
+					<xsd:union memberTypes="confirmTypes xsd:string"/>
+				</xsd:simpleType>
 			</xsd:attribute>
 			<xsd:attribute name="publisher-returns" type="xsd:string" use="optional">
 				<xsd:annotation>
@@ -1583,6 +1615,14 @@
 		<xsd:restriction base="xsd:token">
 			<xsd:enumeration value="CHANNEL"/>
 			<xsd:enumeration value="CONNECTION"/>
+		</xsd:restriction>
+	</xsd:simpleType>
+
+	<xsd:simpleType name="confirmTypes">
+		<xsd:restriction base="xsd:token">
+			<xsd:enumeration value="SIMPLE"/>
+			<xsd:enumeration value="CORRELATED"/>
+			<xsd:enumeration value="NONE"/>
 		</xsd:restriction>
 	</xsd:simpleType>
 

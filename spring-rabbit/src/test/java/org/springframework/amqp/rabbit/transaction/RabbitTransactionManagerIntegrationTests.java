@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,38 +16,36 @@
 
 package org.springframework.amqp.rabbit.transaction;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.fail;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.fail;
 
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 
 import org.springframework.amqp.rabbit.connection.CachingConnectionFactory;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
-import org.springframework.amqp.rabbit.junit.BrokerRunning;
+import org.springframework.amqp.rabbit.junit.RabbitAvailable;
 import org.springframework.beans.factory.DisposableBean;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * @author David Syer
  * @author Gunnar Hillert
+ * @author Gary Russell
  * @since 1.0
  *
  */
+@RabbitAvailable(queues = RabbitTransactionManagerIntegrationTests.ROUTE)
 public class RabbitTransactionManagerIntegrationTests {
 
-	private static final String ROUTE = "test.queue";
+	public static final String ROUTE = "test.queue.RabbitTransactionManagerIntegrationTests";
 
 	private RabbitTemplate template;
 
 	private TransactionTemplate transactionTemplate;
 
-	@Rule
-	public BrokerRunning brokerIsRunning = BrokerRunning.isRunningWithEmptyQueues(ROUTE);
-
-	@Before
+	@BeforeEach
 	public void init() {
 		CachingConnectionFactory connectionFactory = new CachingConnectionFactory();
 		connectionFactory.setHost("localhost");
@@ -58,11 +56,10 @@ public class RabbitTransactionManagerIntegrationTests {
 		transactionTemplate = new TransactionTemplate(transactionManager);
 	}
 
-	@After
+	@AfterEach
 	public void cleanup() throws Exception {
 		this.template.stop();
 		((DisposableBean) this.template.getConnectionFactory()).destroy();
-		this.brokerIsRunning.removeTestQueues();
 	}
 
 	@Test
@@ -71,18 +68,18 @@ public class RabbitTransactionManagerIntegrationTests {
 			template.convertAndSend(ROUTE, "message");
 			return (String) template.receiveAndConvert(ROUTE);
 		});
-		assertEquals(null, result);
+		assertThat(result).isEqualTo(null);
 		result = (String) template.receiveAndConvert(ROUTE);
-		assertEquals("message", result);
+		assertThat(result).isEqualTo("message");
 	}
 
 	@Test
 	public void testReceiveInTransaction() throws Exception {
 		template.convertAndSend(ROUTE, "message");
 		String result = transactionTemplate.execute(status -> (String) template.receiveAndConvert(ROUTE));
-		assertEquals("message", result);
+		assertThat(result).isEqualTo("message");
 		result = (String) template.receiveAndConvert(ROUTE);
-		assertEquals(null, result);
+		assertThat(result).isEqualTo(null);
 	}
 
 	@Test
@@ -101,9 +98,9 @@ public class RabbitTransactionManagerIntegrationTests {
 			// Expected
 		}
 		String result = (String) template.receiveAndConvert(ROUTE);
-		assertEquals("message", result);
+		assertThat(result).isEqualTo("message");
 		result = (String) template.receiveAndConvert(ROUTE);
-		assertEquals(null, result);
+		assertThat(result).isEqualTo(null);
 	}
 
 	@Test
@@ -114,9 +111,9 @@ public class RabbitTransactionManagerIntegrationTests {
 			return null;
 		});
 		String result = (String) template.receiveAndConvert(ROUTE);
-		assertEquals("message", result);
+		assertThat(result).isEqualTo("message");
 		result = (String) template.receiveAndConvert(ROUTE);
-		assertEquals(null, result);
+		assertThat(result).isEqualTo(null);
 	}
 
 	@Test
@@ -133,7 +130,7 @@ public class RabbitTransactionManagerIntegrationTests {
 			// Expected
 		}
 		String result = (String) template.receiveAndConvert(ROUTE);
-		assertEquals(null, result);
+		assertThat(result).isEqualTo(null);
 	}
 
 	@SuppressWarnings("serial")

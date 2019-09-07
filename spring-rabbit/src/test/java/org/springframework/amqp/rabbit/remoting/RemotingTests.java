@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,42 +16,33 @@
 
 package org.springframework.amqp.rabbit.remoting;
 
-import static org.hamcrest.Matchers.containsString;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertThat;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.fail;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
-import org.junit.ClassRule;
-import org.junit.Test;
-import org.junit.runner.RunWith;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
 
 import org.springframework.amqp.rabbit.connection.CachingConnectionFactory;
 import org.springframework.amqp.rabbit.core.RabbitAdmin;
-import org.springframework.amqp.rabbit.junit.BrokerRunning;
+import org.springframework.amqp.rabbit.junit.RabbitAvailable;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.remoting.RemoteProxyFailureException;
 import org.springframework.test.annotation.DirtiesContext;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
+import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
 
 /**
  * @author Gary Russell
  * @since 1.2
  *
  */
-@ContextConfiguration
-@RunWith(SpringJUnit4ClassRunner.class)
+@SpringJUnitConfig
 @DirtiesContext
+@RabbitAvailable
 public class RemotingTests {
-
-	@ClassRule
-	public static BrokerRunning brokerRunning = BrokerRunning.isRunning();
 
 	@Autowired
 	private ServiceInterface client;
@@ -60,8 +51,8 @@ public class RemotingTests {
 
 	private static String receivedMessage;
 
-	@BeforeClass
-	@AfterClass
+	@BeforeAll
+	@AfterAll
 	public static void setupAndCleanUp() {
 		CachingConnectionFactory cf = new CachingConnectionFactory("localhost");
 		RabbitAdmin admin = new RabbitAdmin(cf);
@@ -73,15 +64,15 @@ public class RemotingTests {
 	@Test
 	public void testEcho() {
 		String reply = client.echo("foo");
-		assertEquals("echo:foo", reply);
+		assertThat(reply).isEqualTo("echo:foo");
 	}
 
 	@Test
 	public void testNoAnswer() throws Exception {
 		latch = new CountDownLatch(1);
 		client.noAnswer("foo");
-		assertTrue(latch.await(5, TimeUnit.SECONDS));
-		assertEquals("received:foo", receivedMessage);
+		assertThat(latch.await(5, TimeUnit.SECONDS)).isTrue();
+		assertThat(receivedMessage).isEqualTo("received:foo");
 	}
 
 	@Test
@@ -91,7 +82,7 @@ public class RemotingTests {
 			fail("Exception expected");
 		}
 		catch (RemoteProxyFailureException e) {
-			assertThat(e.getMessage(), containsString(" - perhaps a timeout in the template?"));
+			assertThat(e.getMessage()).contains(" - perhaps a timeout in the template?");
 		}
 	}
 

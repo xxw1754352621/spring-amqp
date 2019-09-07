@@ -1,11 +1,11 @@
 /*
- * Copyright 2002-2018 the original author or authors.
+ * Copyright 2002-2019 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -19,7 +19,6 @@ package org.springframework.amqp.rabbit.core;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
@@ -39,6 +38,7 @@ import org.springframework.amqp.core.Declarable;
 import org.springframework.amqp.core.Declarables;
 import org.springframework.amqp.core.Exchange;
 import org.springframework.amqp.core.Queue;
+import org.springframework.amqp.core.QueueInformation;
 import org.springframework.amqp.rabbit.connection.CachingConnectionFactory;
 import org.springframework.amqp.rabbit.connection.CachingConnectionFactory.CacheMode;
 import org.springframework.amqp.rabbit.connection.ChannelProxy;
@@ -77,6 +77,8 @@ import com.rabbitmq.client.Channel;
 @ManagedResource(description = "Admin Tasks")
 public class RabbitAdmin implements AmqpAdmin, ApplicationContextAware, ApplicationEventPublisherAware,
 		BeanNameAware, InitializingBean {
+
+	private static final String UNUSED = "unused";
 
 	private static final int DECLARE_MAX_ATTEMPTS = 5;
 
@@ -134,9 +136,9 @@ public class RabbitAdmin implements AmqpAdmin, ApplicationContextAware, Applicat
 
 	private ApplicationEventPublisher applicationEventPublisher;
 
-	private boolean declareCollections = false;
-
 	private TaskExecutor taskExecutor = new SimpleAsyncTaskExecutor();
+
+	private boolean explicitDeclarationsOnly;
 
 	private volatile boolean running = false;
 
@@ -183,20 +185,6 @@ public class RabbitAdmin implements AmqpAdmin, ApplicationContextAware, Applicat
 
 	public void setIgnoreDeclarationExceptions(boolean ignoreDeclarationExceptions) {
 		this.ignoreDeclarationExceptions = ignoreDeclarationExceptions;
-	}
-
-	/**
-	 * Set to false to disable declaring collections of {@link Declarable}.
-	 * Since the admin has to iterate over all Collection beans, this may
-	 * cause undesirable side-effects in some cases. Default true.
-	 * @param declareCollections set to false to prevent declarations of collections.
-	 * @since 1.7.7
-	 * @deprecated - users should use {@link Declarables} beans instead of collections of
-	 * {@link Declarable}.
-	 */
-	@Deprecated
-	public void setDeclareCollections(boolean declareCollections) {
-		this.declareCollections = declareCollections;
 	}
 
 	/**
@@ -249,7 +237,7 @@ public class RabbitAdmin implements AmqpAdmin, ApplicationContextAware, Applicat
 			try {
 				channel.exchangeDelete(exchangeName);
 			}
-			catch (IOException e) {
+			catch (@SuppressWarnings(UNUSED) IOException e) {
 				return false;
 			}
 			return true;
@@ -314,7 +302,7 @@ public class RabbitAdmin implements AmqpAdmin, ApplicationContextAware, Applicat
 			try {
 				channel.queueDelete(queueName);
 			}
-			catch (IOException e) {
+			catch (@SuppressWarnings(UNUSED) IOException e) {
 				return false;
 			}
 			return true;
@@ -397,17 +385,28 @@ public class RabbitAdmin implements AmqpAdmin, ApplicationContextAware, Applicat
 	 */
 	@Override
 	@ManagedOperation(description = "Get queue name, message count and consumer count")
-	@Nullable
 	public Properties getQueueProperties(final String queueName) {
+		QueueInformation queueInfo = getQueueInfo(queueName);
+		if (queueInfo != null) {
+			Properties props = new Properties();
+			props.put(QUEUE_NAME, queueInfo.getName());
+			props.put(QUEUE_MESSAGE_COUNT, queueInfo.getMessageCount());
+			props.put(QUEUE_CONSUMER_COUNT, queueInfo.getConsumerCount());
+			return props;
+		}
+		else {
+			return null;
+		}
+	}
+
+	@Override
+	public QueueInformation getQueueInfo(String queueName) {
 		Assert.hasText(queueName, "'queueName' cannot be null or empty");
 		return this.rabbitTemplate.execute(channel -> {
 			try {
 				DeclareOk declareOk = channel.queueDeclarePassive(queueName);
-				Properties props = new Properties();
-				props.put(QUEUE_NAME, declareOk.getQueue());
-				props.put(QUEUE_MESSAGE_COUNT, declareOk.getMessageCount());
-				props.put(QUEUE_CONSUMER_COUNT, declareOk.getConsumerCount());
-				return props;
+				return new QueueInformation(declareOk.getQueue(), declareOk.getMessageCount(),
+						declareOk.getConsumerCount());
 			}
 			catch (IllegalArgumentException e) {
 				if (RabbitAdmin.this.logger.isDebugEnabled()) {
@@ -419,17 +418,28 @@ public class RabbitAdmin implements AmqpAdmin, ApplicationContextAware, Applicat
 						((ChannelProxy) channel).getTargetChannel().close();
 					}
 				}
-				catch (TimeoutException e1) {
+				catch (@SuppressWarnings(UNUSED) TimeoutException e1) {
 				}
 				return null;
 			}
-			catch (Exception e) {
+			catch (@SuppressWarnings(UNUSED) Exception e) {
 				if (RabbitAdmin.this.logger.isDebugEnabled()) {
 					RabbitAdmin.this.logger.debug("Queue '" + queueName + "' does not exist");
 				}
 				return null;
 			}
 		});
+	}
+
+	/**
+	 * Set to true to only declare {@link Declarable} beans that are explicitly configured
+	 * to be declared by this admin.
+	 * @param explicitDeclarationsOnly true to ignore beans with no admin declaration
+	 * configuration.
+	 * @since 2.1.9
+	 */
+	public void setExplicitDeclarationsOnly(boolean explicitDeclarationsOnly) {
+		this.explicitDeclarationsOnly = explicitDeclarationsOnly;
 	}
 
 	/**
@@ -556,7 +566,6 @@ public class RabbitAdmin implements AmqpAdmin, ApplicationContextAware, Applicat
 		Collection<Binding> contextBindings = new LinkedList<Binding>(
 				this.applicationContext.getBeansOfType(Binding.class).values());
 
-		processLegacyCollections(contextExchanges, contextQueues, contextBindings);
 		processDeclarables(contextExchanges, contextQueues, contextBindings);
 
 		final Collection<Exchange> exchanges = filterDeclarables(contextExchanges);
@@ -598,37 +607,6 @@ public class RabbitAdmin implements AmqpAdmin, ApplicationContextAware, Applicat
 
 	}
 
-	// TODO: remove in 3.0
-	private void processLegacyCollections(Collection<Exchange> contextExchanges, // NOSONAR complexity
-			Collection<Queue> contextQueues, Collection<Binding> contextBindings) {
-
-		@SuppressWarnings("rawtypes")
-		Collection<Collection> collections = this.declareCollections
-			? this.applicationContext.getBeansOfType(Collection.class, false, false).values()
-			: Collections.emptyList();
-		boolean shouldWarn = false;
-		for (Collection<?> collection : collections) {
-			if (collection.size() > 0 && collection.iterator().next() instanceof Declarable) {
-				shouldWarn = true;
-				for (Object declarable : collection) {
-					if (declarable instanceof Exchange) {
-						contextExchanges.add((Exchange) declarable);
-					}
-					else if (declarable instanceof Queue) {
-						contextQueues.add((Queue) declarable);
-					}
-					else if (declarable instanceof Binding) {
-						contextBindings.add((Binding) declarable);
-					}
-				}
-			}
-		}
-		if (shouldWarn && this.logger.isWarnEnabled()) {
-			this.logger.warn("Beans of type Collection<Declarable> are discouraged, and deprecated, "
-					+ "use Declarables beans instead");
-		}
-	}
-
 	private void processDeclarables(Collection<Exchange> contextExchanges, Collection<Queue> contextQueues,
 			Collection<Binding> contextBindings) {
 		Collection<Declarables> declarables = this.applicationContext.getBeansOfType(Declarables.class, false, true)
@@ -657,10 +635,14 @@ public class RabbitAdmin implements AmqpAdmin, ApplicationContextAware, Applicat
 	 */
 	private <T extends Declarable> Collection<T> filterDeclarables(Collection<T> declarables) {
 		return declarables.stream()
-				.filter(d -> d.shouldDeclare() // NOSONAR boolean complexity
-						&& (d.getDeclaringAdmins().isEmpty() || d.getDeclaringAdmins().contains(this)
-								|| (this.beanName != null && d.getDeclaringAdmins().contains(this.beanName))))
+				.filter(dec -> dec.shouldDeclare() && declarableByMe(dec))
 				.collect(Collectors.toList());
+	}
+
+	private <T extends Declarable> boolean declarableByMe(T dec) {
+		return (dec.getDeclaringAdmins().isEmpty() && !this.explicitDeclarationsOnly) // NOSONAR boolean complexity
+				|| dec.getDeclaringAdmins().contains(this)
+				|| (this.beanName != null && dec.getDeclaringAdmins().contains(this.beanName));
 	}
 
 	// private methods for declaring Exchanges, Queues, and Bindings on a Channel

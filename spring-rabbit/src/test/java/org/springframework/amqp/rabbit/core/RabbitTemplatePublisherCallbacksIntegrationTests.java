@@ -1,11 +1,11 @@
 /*
- * Copyright 2002-2018 the original author or authors.
+ * Copyright 2002-2019 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,14 +16,7 @@
 
 package org.springframework.amqp.rabbit.core;
 
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.greaterThan;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertThat;
-import static org.junit.Assert.assertTrue;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -54,10 +47,9 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 import org.apache.commons.logging.Log;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 
 import org.springframework.amqp.AmqpException;
 import org.springframework.amqp.core.Correlation;
@@ -66,14 +58,16 @@ import org.springframework.amqp.core.MessagePostProcessor;
 import org.springframework.amqp.core.MessageProperties;
 import org.springframework.amqp.core.Queue;
 import org.springframework.amqp.core.QueueBuilder;
+import org.springframework.amqp.core.QueueBuilder.Overflow;
 import org.springframework.amqp.rabbit.connection.CachingConnectionFactory;
+import org.springframework.amqp.rabbit.connection.CachingConnectionFactory.ConfirmType;
 import org.springframework.amqp.rabbit.connection.ChannelProxy;
 import org.springframework.amqp.rabbit.connection.CorrelationData;
 import org.springframework.amqp.rabbit.connection.PendingConfirm;
 import org.springframework.amqp.rabbit.connection.PublisherCallbackChannel.Listener;
 import org.springframework.amqp.rabbit.connection.PublisherCallbackChannelImpl;
-import org.springframework.amqp.rabbit.junit.BrokerRunning;
 import org.springframework.amqp.rabbit.junit.BrokerTestUtils;
+import org.springframework.amqp.rabbit.junit.RabbitAvailable;
 import org.springframework.amqp.rabbit.listener.SimpleMessageListenerContainer;
 import org.springframework.amqp.rabbit.listener.adapter.MessageListenerAdapter;
 import org.springframework.amqp.rabbit.listener.adapter.ReplyingMessageListener;
@@ -82,6 +76,7 @@ import org.springframework.amqp.utils.test.TestUtils;
 import org.springframework.beans.DirectFieldAccessor;
 import org.springframework.expression.Expression;
 import org.springframework.expression.spel.standard.SpelExpressionParser;
+import org.springframework.test.context.junit.jupiter.DisabledIf;
 
 import com.rabbitmq.client.Channel;
 import com.rabbitmq.client.Connection;
@@ -92,16 +87,14 @@ import com.rabbitmq.client.ConnectionFactory;
  * @author Gunar Hillert
  * @author Artem Bilan
  * @author Rolf Arne Corneliussen
- * @author Arnaud Cogoluègnes
+ * @author Arnaud Cogolu?gnes
  * @since 1.1
  *
  */
+@RabbitAvailable(queues = RabbitTemplatePublisherCallbacksIntegrationTests.ROUTE)
 public class RabbitTemplatePublisherCallbacksIntegrationTests {
 
-	private static final String ROUTE = "test.queue";
-
-	@Rule
-	public BrokerRunning brokerIsRunning = BrokerRunning.isRunningWithEmptyQueues(ROUTE);
+	public static final String ROUTE = "test.queue.RabbitTemplatePublisherCallbacksIntegrationTests";
 
 	private final ExecutorService executorService = Executors.newSingleThreadExecutor();
 
@@ -119,7 +112,7 @@ public class RabbitTemplatePublisherCallbacksIntegrationTests {
 
 	private RabbitTemplate templateWithConfirmsAndReturnsEnabled;
 
-	@Before
+	@BeforeEach
 	public void create() {
 		connectionFactory = new CachingConnectionFactory();
 		connectionFactory.setHost("localhost");
@@ -129,7 +122,7 @@ public class RabbitTemplatePublisherCallbacksIntegrationTests {
 		connectionFactoryWithConfirmsEnabled.setHost("localhost");
 		connectionFactoryWithConfirmsEnabled.setChannelCacheSize(100);
 		connectionFactoryWithConfirmsEnabled.setPort(BrokerTestUtils.getPort());
-		connectionFactoryWithConfirmsEnabled.setPublisherConfirms(true);
+		connectionFactoryWithConfirmsEnabled.setPublisherConfirmType(ConfirmType.CORRELATED);
 		templateWithConfirmsEnabled = new RabbitTemplate(connectionFactoryWithConfirmsEnabled);
 		connectionFactoryWithReturnsEnabled = new CachingConnectionFactory();
 		connectionFactoryWithReturnsEnabled.setHost("localhost");
@@ -141,21 +134,19 @@ public class RabbitTemplatePublisherCallbacksIntegrationTests {
 		connectionFactoryWithConfirmsAndReturnsEnabled.setHost("localhost");
 		connectionFactoryWithConfirmsAndReturnsEnabled.setChannelCacheSize(100);
 		connectionFactoryWithConfirmsAndReturnsEnabled.setPort(BrokerTestUtils.getPort());
-		connectionFactoryWithConfirmsAndReturnsEnabled.setPublisherConfirms(true);
+		connectionFactoryWithConfirmsAndReturnsEnabled.setPublisherConfirmType(ConfirmType.CORRELATED);
 		connectionFactoryWithConfirmsAndReturnsEnabled.setPublisherReturns(true);
 		templateWithConfirmsAndReturnsEnabled = new RabbitTemplate(connectionFactoryWithConfirmsAndReturnsEnabled);
 		templateWithConfirmsAndReturnsEnabled.setMandatory(true);
 	}
 
-	@After
+	@AfterEach
 	public void cleanUp() {
 		this.templateWithConfirmsEnabled.stop();
 		this.templateWithReturnsEnabled.stop();
 		this.connectionFactory.destroy();
 		this.connectionFactoryWithConfirmsEnabled.destroy();
 		this.connectionFactoryWithReturnsEnabled.destroy();
-		this.brokerIsRunning.removeTestQueues();
-
 		this.executorService.shutdown();
 	}
 
@@ -164,9 +155,11 @@ public class RabbitTemplatePublisherCallbacksIntegrationTests {
 		final CountDownLatch latch = new CountDownLatch(10000);
 		final AtomicInteger acks = new AtomicInteger();
 		final AtomicReference<CorrelationData> confirmCorrelation = new AtomicReference<CorrelationData>();
+		AtomicReference<String> callbackThreadName = new AtomicReference<>();
 		this.templateWithConfirmsEnabled.setConfirmCallback((correlationData, ack, cause) -> {
 			acks.incrementAndGet();
 			confirmCorrelation.set(correlationData);
+			callbackThreadName.set(Thread.currentThread().getName());
 			latch.countDown();
 		});
 		this.templateWithConfirmsEnabled.setCorrelationDataPostProcessor((m, c) -> new CorrelationData("abc"));
@@ -199,12 +192,12 @@ public class RabbitTemplatePublisherCallbacksIntegrationTests {
 			});
 		}
 		exec.shutdown();
-		assertTrue(exec.awaitTermination(300, TimeUnit.SECONDS));
-		assertTrue("" + mppLatch.getCount(), mppLatch.await(300, TimeUnit.SECONDS));
-		assertTrue("" + latch.getCount(), latch.await(300, TimeUnit.SECONDS));
-		assertNotNull(confirmCorrelation.get());
-		assertEquals("abc", confirmCorrelation.get().getId());
-		assertNull(templateWithConfirmsEnabled.getUnconfirmed(-1));
+		assertThat(exec.awaitTermination(300, TimeUnit.SECONDS)).isTrue();
+		assertThat(mppLatch.await(300, TimeUnit.SECONDS)).as("" + mppLatch.getCount()).isTrue();
+		assertThat(latch.await(300, TimeUnit.SECONDS)).as("" + latch.getCount()).isTrue();
+		assertThat(confirmCorrelation.get()).isNotNull();
+		assertThat(confirmCorrelation.get().getId()).isEqualTo("abc");
+		assertThat(templateWithConfirmsEnabled.getUnconfirmed(-1)).isNull();
 		this.templateWithConfirmsEnabled.execute(channel -> {
 			Map<?, ?> listenerMap = TestUtils.getPropertyValue(((ChannelProxy) channel).getTargetChannel(), "listenerForSeq",
 					Map.class);
@@ -212,7 +205,7 @@ public class RabbitTemplatePublisherCallbacksIntegrationTests {
 			while (n++ < 100 && listenerMap.size() > 0) {
 				Thread.sleep(100);
 			}
-			assertEquals(0, listenerMap.size());
+			assertThat(listenerMap).hasSize(0);
 			return null;
 		});
 
@@ -220,6 +213,7 @@ public class RabbitTemplatePublisherCallbacksIntegrationTests {
 		new DirectFieldAccessor(connectionFactoryWithConfirmsEnabled).setPropertyValue("logger", logger);
 		cleanUp();
 		verify(logger, never()).error(any());
+		assertThat(callbackThreadName.get()).startsWith("spring-rabbit-deferred-pool");
 	}
 
 	@Test
@@ -239,9 +233,9 @@ public class RabbitTemplatePublisherCallbacksIntegrationTests {
 		String result = (String) this.templateWithConfirmsEnabled.convertSendAndReceive(ROUTE, (Object) "message",
 				correlationData);
 		container.stop();
-		assertEquals("MESSAGE", result);
-		assertTrue(latch.await(10, TimeUnit.SECONDS));
-		assertEquals(correlationData, confirmCD.get());
+		assertThat(result).isEqualTo("MESSAGE");
+		assertThat(latch.await(10, TimeUnit.SECONDS)).isTrue();
+		assertThat(confirmCD.get()).isEqualTo(correlationData);
 	}
 
 	@Test
@@ -256,7 +250,7 @@ public class RabbitTemplatePublisherCallbacksIntegrationTests {
 			try {
 				threadLatch.await(10, TimeUnit.SECONDS);
 			}
-			catch (InterruptedException e) {
+			catch (@SuppressWarnings("unused") InterruptedException e) {
 				Thread.currentThread().interrupt();
 			}
 			templateWithConfirmsEnabled.doSend(channel, "", ROUTE,
@@ -269,8 +263,8 @@ public class RabbitTemplatePublisherCallbacksIntegrationTests {
 		// Thread 2
 		templateWithConfirmsEnabled.convertAndSend(ROUTE, (Object) "message", new CorrelationData("abc"));
 		threadLatch.countDown();
-		assertTrue(latch.await(5000, TimeUnit.MILLISECONDS));
-		assertNull(templateWithConfirmsEnabled.getUnconfirmed(-1));
+		assertThat(latch.await(5000, TimeUnit.MILLISECONDS)).isTrue();
+		assertThat(templateWithConfirmsEnabled.getUnconfirmed(-1)).isNull();
 	}
 
 	@Test
@@ -282,10 +276,10 @@ public class RabbitTemplatePublisherCallbacksIntegrationTests {
 		RabbitTemplate secondTemplate = new RabbitTemplate(connectionFactoryWithConfirmsEnabled);
 		secondTemplate.setConfirmCallback((correlationData, ack, cause) -> latch2.countDown());
 		secondTemplate.convertAndSend(ROUTE, (Object) "message", new CorrelationData("def"));
-		assertTrue(latch1.await(10, TimeUnit.SECONDS));
-		assertTrue(latch2.await(10, TimeUnit.SECONDS));
-		assertNull(templateWithConfirmsEnabled.getUnconfirmed(-1));
-		assertNull(secondTemplate.getUnconfirmed(-1));
+		assertThat(latch1.await(10, TimeUnit.SECONDS)).isTrue();
+		assertThat(latch2.await(10, TimeUnit.SECONDS)).isTrue();
+		assertThat(templateWithConfirmsEnabled.getUnconfirmed(-1)).isNull();
+		assertThat(secondTemplate.getUnconfirmed(-1)).isNull();
 	}
 
 	@Test
@@ -298,10 +292,10 @@ public class RabbitTemplatePublisherCallbacksIntegrationTests {
 		});
 		templateWithReturnsEnabled.setMandatory(true);
 		templateWithReturnsEnabled.convertAndSend(ROUTE + "junk", (Object) "message", new CorrelationData("abc"));
-		assertTrue(latch.await(1000, TimeUnit.MILLISECONDS));
-		assertEquals(1, returns.size());
+		assertThat(latch.await(1000, TimeUnit.MILLISECONDS)).isTrue();
+		assertThat(returns).hasSize(1);
 		Message message = returns.get(0);
-		assertEquals("message", new String(message.getBody(), "utf-8"));
+		assertThat(new String(message.getBody(), "utf-8")).isEqualTo("message");
 	}
 
 	@Test
@@ -316,10 +310,10 @@ public class RabbitTemplatePublisherCallbacksIntegrationTests {
 		templateWithReturnsEnabled.setMandatoryExpression(mandatoryExpression);
 		templateWithReturnsEnabled.convertAndSend(ROUTE + "junk", (Object) "message", new CorrelationData("abc"));
 		templateWithReturnsEnabled.convertAndSend(ROUTE + "junk", (Object) "foo", new CorrelationData("abc"));
-		assertTrue(latch.await(1000, TimeUnit.MILLISECONDS));
-		assertEquals(1, returns.size());
+		assertThat(latch.await(1000, TimeUnit.MILLISECONDS)).isTrue();
+		assertThat(returns).hasSize(1);
 		Message message = returns.get(0);
-		assertEquals("message", new String(message.getBody(), "utf-8"));
+		assertThat(new String(message.getBody(), "utf-8")).isEqualTo("message");
 	}
 
 	@Test
@@ -338,19 +332,19 @@ public class RabbitTemplatePublisherCallbacksIntegrationTests {
 
 		CachingConnectionFactory ccf = new CachingConnectionFactory(mockConnectionFactory);
 		ccf.setExecutor(mock(ExecutorService.class));
-		ccf.setPublisherConfirms(true);
+		ccf.setPublisherConfirmType(ConfirmType.CORRELATED);
 		final RabbitTemplate template = new RabbitTemplate(ccf);
 
 		final AtomicBoolean confirmed = new AtomicBoolean();
 		template.setConfirmCallback((correlationData, ack, cause) -> confirmed.set(true));
 		template.convertAndSend(ROUTE, (Object) "message", new CorrelationData("abc"));
 		Thread.sleep(5);
-		assertEquals(1, template.getUnconfirmedCount());
+		assertThat(template.getUnconfirmedCount()).isEqualTo(1);
 		Collection<CorrelationData> unconfirmed = template.getUnconfirmed(-1);
-		assertEquals(0, template.getUnconfirmedCount());
-		assertEquals(1, unconfirmed.size());
-		assertEquals("abc", unconfirmed.iterator().next().getId());
-		assertFalse(confirmed.get());
+		assertThat(template.getUnconfirmedCount()).isEqualTo(0);
+		assertThat(unconfirmed).hasSize(1);
+		assertThat(unconfirmed.iterator().next().getId()).isEqualTo("abc");
+		assertThat(confirmed.get()).isFalse();
 	}
 
 	@Test
@@ -373,7 +367,7 @@ public class RabbitTemplatePublisherCallbacksIntegrationTests {
 
 		CachingConnectionFactory ccf = new CachingConnectionFactory(mockConnectionFactory);
 		ccf.setExecutor(mock(ExecutorService.class));
-		ccf.setPublisherConfirms(true);
+		ccf.setPublisherConfirmType(ConfirmType.CORRELATED);
 		ccf.setChannelCacheSize(3);
 		final RabbitTemplate template = new RabbitTemplate(ccf);
 
@@ -389,7 +383,7 @@ public class RabbitTemplatePublisherCallbacksIntegrationTests {
 			try {
 				threadLatch.await(10, TimeUnit.SECONDS);
 			}
-			catch (InterruptedException e) {
+			catch (@SuppressWarnings("unused") InterruptedException e) {
 				Thread.currentThread().interrupt();
 			}
 			template.doSend(channel, "", ROUTE,
@@ -403,29 +397,29 @@ public class RabbitTemplatePublisherCallbacksIntegrationTests {
 		// Thread 2
 		template.convertAndSend(ROUTE, (Object) "message", new CorrelationData("abc")); // channel y
 		threadLatch.countDown();
-		assertTrue(threadSentLatch.await(5, TimeUnit.SECONDS));
-		assertEquals(2, template.getUnconfirmedCount());
+		assertThat(threadSentLatch.await(5, TimeUnit.SECONDS)).isTrue();
+		assertThat(template.getUnconfirmedCount()).isEqualTo(2);
 		Collection<CorrelationData> unconfirmed = template.getUnconfirmed(-1);
-		assertEquals(2, unconfirmed.size());
-		assertEquals(0, template.getUnconfirmedCount());
+		assertThat(unconfirmed).hasSize(2);
+		assertThat(template.getUnconfirmedCount()).isEqualTo(0);
 		Set<String> ids = new HashSet<String>();
 		Iterator<CorrelationData> iterator = unconfirmed.iterator();
 		ids.add(iterator.next().getId());
 		ids.add(iterator.next().getId());
-		assertTrue(ids.remove("abc"));
-		assertTrue(ids.remove("def"));
-		assertFalse(confirmed.get());
+		assertThat(ids.remove("abc")).isTrue();
+		assertThat(ids.remove("def")).isTrue();
+		assertThat(confirmed.get()).isFalse();
 		DirectFieldAccessor dfa = new DirectFieldAccessor(template);
 		Map<?, ?> pendingConfirms = (Map<?, ?>) dfa.getPropertyValue("publisherConfirmChannels");
-		assertThat(pendingConfirms.size(), greaterThan(0)); // might use 2 or only 1 channel
+		assertThat(pendingConfirms.size()).isGreaterThan(0); // might use 2 or only 1 channel
 		exec.shutdown();
-		assertTrue(exec.awaitTermination(10, TimeUnit.SECONDS));
+		assertThat(exec.awaitTermination(10, TimeUnit.SECONDS)).isTrue();
 		ccf.destroy();
 		int n = 0;
 		while (n++ < 100 && pendingConfirms.size() > 0) {
 			Thread.sleep(100);
 		}
-		assertEquals(0, pendingConfirms.size());
+		assertThat(pendingConfirms).hasSize(0);
 	}
 
 	@Test
@@ -447,7 +441,7 @@ public class RabbitTemplatePublisherCallbacksIntegrationTests {
 
 		CachingConnectionFactory ccf = new CachingConnectionFactory(mockConnectionFactory);
 		ccf.setExecutor(mock(ExecutorService.class));
-		ccf.setPublisherConfirms(true);
+		ccf.setPublisherConfirmType(ConfirmType.CORRELATED);
 		final RabbitTemplate template = new RabbitTemplate(ccf);
 
 		final AtomicBoolean confirmed = new AtomicBoolean();
@@ -455,20 +449,20 @@ public class RabbitTemplatePublisherCallbacksIntegrationTests {
 		template.convertAndSend(ROUTE, (Object) "message", new CorrelationData("abc"));
 		Thread.sleep(100);
 		template.convertAndSend(ROUTE, (Object) "message", new CorrelationData("def"));
-		assertEquals(2, template.getUnconfirmedCount());
+		assertThat(template.getUnconfirmedCount()).isEqualTo(2);
 		Collection<CorrelationData> unconfirmed = template.getUnconfirmed(50);
-		assertEquals(1, template.getUnconfirmedCount());
-		assertEquals(1, unconfirmed.size());
-		assertEquals("abc", unconfirmed.iterator().next().getId());
-		assertFalse(confirmed.get());
+		assertThat(template.getUnconfirmedCount()).isEqualTo(1);
+		assertThat(unconfirmed).hasSize(1);
+		assertThat(unconfirmed.iterator().next().getId()).isEqualTo("abc");
+		assertThat(confirmed.get()).isFalse();
 		Thread.sleep(100);
-		assertEquals(1, template.getUnconfirmedCount());
-		assertEquals(1, unconfirmed.size());
+		assertThat(template.getUnconfirmedCount()).isEqualTo(1);
+		assertThat(unconfirmed).hasSize(1);
 		unconfirmed = template.getUnconfirmed(50);
-		assertEquals(1, unconfirmed.size());
-		assertEquals(0, template.getUnconfirmedCount());
-		assertEquals("def", unconfirmed.iterator().next().getId());
-		assertFalse(confirmed.get());
+		assertThat(unconfirmed).hasSize(1);
+		assertThat(template.getUnconfirmedCount()).isEqualTo(0);
+		assertThat(unconfirmed.iterator().next().getId()).isEqualTo("def");
+		assertThat(confirmed.get()).isFalse();
 	}
 
 	@Test
@@ -489,7 +483,7 @@ public class RabbitTemplatePublisherCallbacksIntegrationTests {
 
 		CachingConnectionFactory ccf = new CachingConnectionFactory(mockConnectionFactory);
 		ccf.setExecutor(mock(ExecutorService.class));
-		ccf.setPublisherConfirms(true);
+		ccf.setPublisherConfirmType(ConfirmType.CORRELATED);
 		final RabbitTemplate template = new RabbitTemplate(ccf);
 
 		final CountDownLatch latch = new CountDownLatch(2);
@@ -501,9 +495,9 @@ public class RabbitTemplatePublisherCallbacksIntegrationTests {
 		template.convertAndSend(ROUTE, (Object) "message", new CorrelationData("abc"));
 		template.convertAndSend(ROUTE, (Object) "message", new CorrelationData("def"));
 		callbackChannel.handleAck(2, true);
-		assertTrue(latch.await(1000, TimeUnit.MILLISECONDS));
+		assertThat(latch.await(1000, TimeUnit.MILLISECONDS)).isTrue();
 		Collection<CorrelationData> unconfirmed = template.getUnconfirmed(-1);
-		assertNull(unconfirmed);
+		assertThat(unconfirmed).isNull();
 	}
 
 	/**
@@ -529,7 +523,7 @@ public class RabbitTemplatePublisherCallbacksIntegrationTests {
 
 		CachingConnectionFactory ccf = new CachingConnectionFactory(mockConnectionFactory);
 		ccf.setExecutor(mock(ExecutorService.class));
-		ccf.setPublisherConfirms(true);
+		ccf.setPublisherConfirmType(ConfirmType.CORRELATED);
 		final RabbitTemplate template1 = new RabbitTemplate(ccf);
 
 		final Set<String> confirms = new HashSet<String>();
@@ -542,7 +536,7 @@ public class RabbitTemplatePublisherCallbacksIntegrationTests {
 		});
 		final RabbitTemplate template2 = new RabbitTemplate(ccf);
 
-		final CountDownLatch latch2 = new CountDownLatch(1);
+		final CountDownLatch latch2 = new CountDownLatch(2);
 		template2.setConfirmCallback((correlationData, ack, cause) -> {
 			if (ack) {
 				confirms.add(correlationData.getId() + "2");
@@ -553,16 +547,16 @@ public class RabbitTemplatePublisherCallbacksIntegrationTests {
 		template2.convertAndSend(ROUTE, (Object) "message", new CorrelationData("def"));
 		template2.convertAndSend(ROUTE, (Object) "message", new CorrelationData("ghi"));
 		callbackChannel.handleAck(3, true);
-		assertTrue(latch1.await(1000, TimeUnit.MILLISECONDS));
-		assertTrue(latch2.await(1000, TimeUnit.MILLISECONDS));
+		assertThat(latch1.await(1000, TimeUnit.MILLISECONDS)).isTrue();
+		assertThat(latch2.await(1000, TimeUnit.MILLISECONDS)).isTrue();
 		Collection<CorrelationData> unconfirmed1 = template1.getUnconfirmed(-1);
-		assertNull(unconfirmed1);
+		assertThat(unconfirmed1).isNull();
 		Collection<CorrelationData> unconfirmed2 = template2.getUnconfirmed(-1);
-		assertNull(unconfirmed2);
-		assertTrue(confirms.contains("abc1"));
-		assertTrue(confirms.contains("def2"));
-		assertTrue(confirms.contains("ghi2"));
-		assertEquals(3, confirms.size());
+		assertThat(unconfirmed2).isNull();
+		assertThat(confirms.contains("abc1")).isTrue();
+		assertThat(confirms.contains("def2")).isTrue();
+		assertThat(confirms.contains("ghi2")).isTrue();
+		assertThat(confirms).hasSize(3);
 	}
 
 	/**
@@ -588,7 +582,7 @@ public class RabbitTemplatePublisherCallbacksIntegrationTests {
 
 		CachingConnectionFactory ccf = new CachingConnectionFactory(mockConnectionFactory);
 		ccf.setExecutor(mock(ExecutorService.class));
-		ccf.setPublisherConfirms(true);
+		ccf.setPublisherConfirmType(ConfirmType.CORRELATED);
 		ccf.setChannelCacheSize(3);
 		final RabbitTemplate template = new RabbitTemplate(ccf);
 
@@ -605,8 +599,8 @@ public class RabbitTemplatePublisherCallbacksIntegrationTests {
 				delayAckProcessingLatch.await(2, TimeUnit.SECONDS);
 				// only delay first time through
 				delayAckProcessingLatch.countDown();
-				waitForAll3AcksLatch.countDown();
 				acks.incrementAndGet();
+				waitForAll3AcksLatch.countDown();
 			}
 			catch (InterruptedException e) {
 				e.printStackTrace();
@@ -627,13 +621,13 @@ public class RabbitTemplatePublisherCallbacksIntegrationTests {
 				e.printStackTrace();
 			}
 		});
-		assertTrue(first2SentOnThread1Latch.await(10, TimeUnit.SECONDS));
+		assertThat(first2SentOnThread1Latch.await(10, TimeUnit.SECONDS)).isTrue();
 		// there should be no concurrent execution exception here
 		channel.handleAck(2, true);
-		assertTrue(allSentLatch.await(10, TimeUnit.SECONDS));
+		assertThat(allSentLatch.await(10, TimeUnit.SECONDS)).isTrue();
 		channel.handleAck(3, false);
-		assertTrue(waitForAll3AcksLatch.await(10, TimeUnit.SECONDS));
-		assertEquals(3, acks.get());
+		assertThat(waitForAll3AcksLatch.await(10, TimeUnit.SECONDS)).isTrue();
+		assertThat(acks.get()).isEqualTo(3);
 
 
 		channel.basicConsume("foo", false, (Map) null, null);
@@ -669,11 +663,12 @@ public class RabbitTemplatePublisherCallbacksIntegrationTests {
 		CorrelationData correlationData = new CorrelationData("bar");
 		String exchange = UUID.randomUUID().toString();
 		this.templateWithConfirmsEnabled.convertAndSend(exchange, "key", "foo", correlationData);
-		assertTrue(latch.await(10, TimeUnit.SECONDS));
-		assertFalse(nack.get());
-		assertEquals(correlationData.toString(), correlation.get().toString());
-		assertThat(reason.get(), containsString("NOT_FOUND - no exchange '" + exchange));
-		assertThat(log.get(), containsString("NOT_FOUND - no exchange '" + exchange));
+		assertThat(latch.await(10, TimeUnit.SECONDS)).isTrue();
+		assertThat(nack.get()).isFalse();
+		assertThat(correlation.get().toString()).isEqualTo(correlationData.toString());
+		assertThat(reason.get()).containsPattern(
+				"(Channel closed by application|NOT_FOUND - no exchange '" + exchange + ")");
+		assertThat(log.get()).contains("NOT_FOUND - no exchange '" + exchange);
 	}
 
 	@Test
@@ -681,16 +676,17 @@ public class RabbitTemplatePublisherCallbacksIntegrationTests {
 		final CountDownLatch latch = new CountDownLatch(40);
 		templateWithConfirmsEnabled.setConfirmCallback((correlationData, ack, cause) -> latch.countDown());
 
-		ExecutorService executorService = Executors.newCachedThreadPool();
+		ExecutorService exec = Executors.newCachedThreadPool();
 		for (int i = 0; i < 20; i++) {
-			executorService.execute(() -> {
+			exec.execute(() -> {
 				templateWithConfirmsEnabled.convertAndSend(ROUTE, (Object) "message", new CorrelationData("abc"));
 				templateWithConfirmsEnabled.convertAndSend("BAD_ROUTE", (Object) "bad", new CorrelationData("cba"));
 			});
 		}
 
-		assertTrue(latch.await(10, TimeUnit.SECONDS));
-		assertNull(templateWithConfirmsEnabled.getUnconfirmed(-1));
+		assertThat(latch.await(10, TimeUnit.SECONDS)).isTrue();
+		assertThat(templateWithConfirmsEnabled.getUnconfirmed(-1)).isNull();
+		exec.shutdownNow();
 	}
 
 	// AMQP-506 ConcurrentModificationException
@@ -709,7 +705,7 @@ public class RabbitTemplatePublisherCallbacksIntegrationTests {
 
 		CachingConnectionFactory ccf = new CachingConnectionFactory(mockConnectionFactory);
 		ccf.setExecutor(mock(ExecutorService.class));
-		ccf.setPublisherConfirms(true);
+		ccf.setPublisherConfirmType(ConfirmType.CORRELATED);
 		final RabbitTemplate template = new RabbitTemplate(ccf);
 
 		final AtomicBoolean confirmed = new AtomicBoolean();
@@ -726,8 +722,9 @@ public class RabbitTemplatePublisherCallbacksIntegrationTests {
 		while (!sentAll.get() && System.currentTimeMillis() < t1 + 60_000) {
 			template.getUnconfirmed(-1);
 		}
-		assertTrue(sentAll.get());
-		assertFalse(confirmed.get());
+		assertThat(sentAll.get()).isTrue();
+		assertThat(confirmed.get()).isFalse();
+		exec.shutdownNow();
 	}
 
 	@Test
@@ -770,7 +767,7 @@ public class RabbitTemplatePublisherCallbacksIntegrationTests {
 
 		CachingConnectionFactory ccf = new CachingConnectionFactory(mockConnectionFactory);
 		ccf.setExecutor(Executors.newSingleThreadExecutor());
-		ccf.setPublisherConfirms(true);
+		ccf.setPublisherConfirmType(ConfirmType.CORRELATED);
 		final RabbitTemplate template = new RabbitTemplate(ccf);
 
 		final CountDownLatch confirmed = new CountDownLatch(1);
@@ -785,16 +782,20 @@ public class RabbitTemplatePublisherCallbacksIntegrationTests {
 					try {
 						t.convertAndSend(ROUTE, (Object) "message", new CorrelationData("abc"));
 					}
-					catch (AmqpException e) { }
+					catch (@SuppressWarnings("unused") AmqpException e) {
+
+					}
 				}
 				return null;
 			});
 			sentAll.countDown();
 		});
-		assertTrue(sentAll.await(10, TimeUnit.SECONDS));
-		assertTrue(confirmed.await(10, TimeUnit.SECONDS));
+		assertThat(sentAll.await(10, TimeUnit.SECONDS)).isTrue();
+		assertThat(confirmed.await(10, TimeUnit.SECONDS)).isTrue();
+		exec.shutdownNow();
 	}
 
+	@SuppressWarnings("unchecked")
 	@Test
 	public void testPublisherCallbackChannelImplCloseWithPending() throws Exception {
 
@@ -824,46 +825,52 @@ public class RabbitTemplatePublisherCallbacksIntegrationTests {
 
 		channel.close();
 
-		assertTrue(latch.await(10, TimeUnit.SECONDS));
+		assertThat(latch.await(10, TimeUnit.SECONDS)).isTrue();
 
 		int n = 0;
 		while (n++ < 100 && TestUtils.getPropertyValue(channel, "pendingConfirms", Map.class).size() > 0) {
 			Thread.sleep(100);
 		}
-		assertEquals(0, TestUtils.getPropertyValue(channel, "pendingConfirms", Map.class).size());
+		assertThat(TestUtils.getPropertyValue(channel, "pendingConfirms", Map.class)).hasSize(0);
 
 	}
 
 	@Test
+	@DisabledIf(expression = "#{systemEnvironment['TRAVIS'] ?: false}", reason = "Overflow needs RabbitMQ 3.7")
 	public void testWithFuture() throws Exception {
 		RabbitAdmin admin = new RabbitAdmin(this.connectionFactory);
 		Queue queue = QueueBuilder.nonDurable()
 						.autoDelete()
-						.withArgument("x-max-length", 1)
-						.withArgument("x-overflow", "reject-publish")
+						.maxLength(1)
+						.overflow(Overflow.rejectPublish)
 						.build();
 		admin.declareQueue(queue);
 		CorrelationData cd1 = new CorrelationData();
 		this.templateWithConfirmsEnabled.convertAndSend("", queue.getName(), "foo", cd1);
-		assertTrue(cd1.getFuture().get(10, TimeUnit.SECONDS).isAck());
+		assertThat(cd1.getFuture().get(10, TimeUnit.SECONDS).isAck()).isTrue();
 		CorrelationData cd2 = new CorrelationData();
 		this.templateWithConfirmsEnabled.convertAndSend("", queue.getName(), "bar", cd2);
-		// TODO: Uncomment when travis updates to rabbitmq 3.7
-//		assertFalse(cd2.getFuture().get(10, TimeUnit.SECONDS).isAck());
+		assertThat(cd2.getFuture().get(10, TimeUnit.SECONDS).isAck()).isFalse();
 		CorrelationData cd3 = new CorrelationData();
 		this.templateWithConfirmsEnabled.convertAndSend("NO_EXCHANGE_HERE", queue.getName(), "foo", cd3);
-		assertFalse(cd3.getFuture().get(10, TimeUnit.SECONDS).isAck());
-		assertThat(cd3.getFuture().get().getReason(), containsString("NOT_FOUND"));
+		assertThat(cd3.getFuture().get(10, TimeUnit.SECONDS).isAck()).isFalse();
+		assertThat(cd3.getFuture().get().getReason()).contains("NOT_FOUND");
 		CorrelationData cd4 = new CorrelationData("42");
 		AtomicBoolean resent = new AtomicBoolean();
+		AtomicReference<String> callbackThreadName = new AtomicReference<>();
+		CountDownLatch callbackLatch = new CountDownLatch(1);
 		this.templateWithConfirmsAndReturnsEnabled.setReturnCallback((m, r, rt, e, rk) -> {
-			this.templateWithConfirmsEnabled.send(ROUTE, m);
+			this.templateWithConfirmsAndReturnsEnabled.send(ROUTE, m);
+			callbackThreadName.set(Thread.currentThread().getName());
 			resent.set(true);
+			callbackLatch.countDown();
 		});
 		this.templateWithConfirmsAndReturnsEnabled.convertAndSend("", "NO_QUEUE_HERE", "foo", cd4);
-		assertTrue(cd4.getFuture().get(10, TimeUnit.SECONDS).isAck());
-		assertNotNull(cd4.getReturnedMessage());
-		assertTrue(resent.get());
+		assertThat(cd4.getFuture().get(10, TimeUnit.SECONDS).isAck()).isTrue();
+		assertThat(callbackLatch.await(10, TimeUnit.SECONDS)).isTrue();
+		assertThat(cd4.getReturnedMessage()).isNotNull();
+		assertThat(resent.get()).isTrue();
+		assertThat(callbackThreadName.get()).startsWith("spring-rabbit-deferred-pool");
 		admin.deleteQueue(queue.getName());
 	}
 

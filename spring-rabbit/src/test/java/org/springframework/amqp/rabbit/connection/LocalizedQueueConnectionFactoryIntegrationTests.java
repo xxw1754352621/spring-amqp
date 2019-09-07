@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,35 +16,32 @@
 
 package org.springframework.amqp.rabbit.connection;
 
-import static org.junit.Assert.assertEquals;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.UUID;
 
-import org.junit.After;
-import org.junit.Before;
-import org.junit.ClassRule;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 
 import org.springframework.amqp.core.Queue;
 import org.springframework.amqp.rabbit.core.RabbitAdmin;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
-import org.springframework.amqp.rabbit.junit.BrokerRunning;
+import org.springframework.amqp.rabbit.junit.RabbitAvailable;
 
 
 /**
  *
  * @author Gary Russell
  */
+@RabbitAvailable(management = true)
 public class LocalizedQueueConnectionFactoryIntegrationTests {
-
-	@ClassRule
-	public static BrokerRunning brokerRunning = BrokerRunning.isBrokerAndManagementRunning();
 
 	private LocalizedQueueConnectionFactory lqcf;
 
 	private CachingConnectionFactory defaultConnectionFactory;
 
-	@Before
+	@BeforeEach
 	public void setup() {
 		this.defaultConnectionFactory = new CachingConnectionFactory("localhost");
 		String[] addresses = new String[] { "localhost:9999", "localhost:5672" };
@@ -57,7 +54,7 @@ public class LocalizedQueueConnectionFactoryIntegrationTests {
 				adminUris, nodes, vhost, username, password, false, null);
 	}
 
-	@After
+	@AfterEach
 	public void tearDown() {
 		this.lqcf.destroy();
 		this.defaultConnectionFactory.destroy();
@@ -71,7 +68,7 @@ public class LocalizedQueueConnectionFactoryIntegrationTests {
 		ConnectionFactory targetConnectionFactory = this.lqcf.getTargetConnectionFactory("[" + queue.getName() + "]");
 		RabbitTemplate template = new RabbitTemplate(targetConnectionFactory);
 		template.convertAndSend("", queue.getName(), "foo");
-		assertEquals("foo", template.receiveAndConvert(queue.getName()));
+		assertThat(template.receiveAndConvert(queue.getName())).isEqualTo("foo");
 		admin.deleteQueue(queue.getName());
 	}
 

@@ -1,11 +1,11 @@
 /*
- * Copyright 2014-2017 the original author or authors.
+ * Copyright 2014-2019 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,15 +16,13 @@
 
 package org.springframework.amqp.support;
 
-import static org.hamcrest.Matchers.instanceOf;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertThat;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Iterator;
 
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 import org.springframework.amqp.AmqpException;
 import org.springframework.amqp.core.Message;
@@ -52,19 +50,19 @@ public class MessagePostProcessorUtilsTests {
 		Collection<MessagePostProcessor> sorted = MessagePostProcessorUtils.sort(Arrays.<MessagePostProcessor>asList(pps));
 		Iterator<MessagePostProcessor> iterator = sorted.iterator();
 		MessagePostProcessor mpp = iterator.next();
-		assertThat(mpp, instanceOf(POMPP.class));
-		assertEquals(2, ((POMPP) mpp).getOrder());
+		assertThat(mpp).isInstanceOf(POMPP.class);
+		assertThat(((POMPP) mpp).getOrder()).isEqualTo(2);
 		mpp = iterator.next();
-		assertThat(mpp, instanceOf(POMPP.class));
-		assertEquals(6, ((POMPP) mpp).getOrder());
+		assertThat(mpp).isInstanceOf(POMPP.class);
+		assertThat(((POMPP) mpp).getOrder()).isEqualTo(6);
 		mpp = iterator.next();
-		assertThat(mpp, instanceOf(OMPP.class));
-		assertEquals(1, ((OMPP) mpp).getOrder());
+		assertThat(mpp).isInstanceOf(OMPP.class);
+		assertThat(((OMPP) mpp).getOrder()).isEqualTo(1);
 		mpp = iterator.next();
-		assertThat(mpp, instanceOf(OMPP.class));
-		assertEquals(3, ((OMPP) mpp).getOrder());
+		assertThat(mpp).isInstanceOf(OMPP.class);
+		assertThat(((OMPP) mpp).getOrder()).isEqualTo(3);
 		mpp = iterator.next();
-		assertThat(mpp, instanceOf(MPP.class));
+		assertThat(mpp).isInstanceOf(MPP.class);
 	}
 
 	class MPP implements MessagePostProcessor {

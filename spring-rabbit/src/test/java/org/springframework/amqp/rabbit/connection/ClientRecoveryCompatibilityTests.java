@@ -1,11 +1,11 @@
 /*
- * Copyright 2014-2017 the original author or authors.
+ * Copyright 2014-2019 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,10 +16,8 @@
 
 package org.springframework.amqp.rabbit.connection;
 
-import static org.hamcrest.Matchers.equalTo;
-import static org.junit.Assert.assertSame;
-import static org.junit.Assert.assertThat;
-import static org.junit.Assert.fail;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.fail;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
@@ -30,7 +28,7 @@ import static org.mockito.Mockito.when;
 
 import java.util.concurrent.ExecutorService;
 
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 import com.rabbitmq.client.Channel;
 import com.rabbitmq.client.impl.recovery.AutorecoveringConnection;
@@ -63,7 +61,7 @@ public class ClientRecoveryCompatibilityTests {
 		channel.close();
 		conn1.close();
 		Connection conn2 = ccf.createConnection();
-		assertSame(conn1, conn2);
+		assertThat(conn2).isSameAs(conn1);
 		channel = conn1.createChannel(false);
 		verifyChannelIs(channel1, channel);
 		channel.close();
@@ -77,7 +75,7 @@ public class ClientRecoveryCompatibilityTests {
 			fail("Expected AutoRecoverConnectionNotCurrentlyOpenException");
 		}
 		catch (AutoRecoverConnectionNotCurrentlyOpenException e) {
-			assertThat(e.getMessage(), equalTo("Auto recovery connection is not currently open"));
+			assertThat(e.getMessage()).isEqualTo("Auto recovery connection is not currently open");
 		}
 		channel = conn2.createChannel(false);
 		verifyChannelIs(channel2, channel);
@@ -89,7 +87,7 @@ public class ClientRecoveryCompatibilityTests {
 
 	private void verifyChannelIs(Channel mockChannel, Channel channel) {
 		ChannelProxy proxy = (ChannelProxy) channel;
-		assertSame(mockChannel, proxy.getTargetChannel());
+		assertThat(proxy.getTargetChannel()).isSameAs(mockChannel);
 	}
 
 }
